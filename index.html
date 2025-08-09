@@ -186,7 +186,7 @@
 
     <script>
         // Configuration
-        const API_KEY = '$2a$10$DnAQmJLN1zlG4/4n35Ldh.K66BmA6QD//f11sBhW7l1smrA2x9w4e'; // ใส่ API Key จริงของคุณที่นี่
+        const API_KEY = '$2a$10$DnAQmJLN1zlG4/4n35Ldh.K66BmA6QD//f11sBhW7l1smrA2x9w4e';
         let ROOM_CODE = localStorage.getItem('attendance_room_code') || null;
         let BIN_ID = localStorage.getItem('attendance_bin_id') || null;
         let API_URL = BIN_ID ? `https://api.jsonbin.io/v3/b/${BIN_ID}` : null;
@@ -205,18 +205,7 @@
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
-            // Check API Key
-            if (API_KEY === '$2a$10$YOUR_ACTUAL_API_KEY_HERE') {
-                showSyncStatus('⚠️ กรุณาใส่ API Key จริงในโค้ด', true);
-                document.getElementById('room-setup').innerHTML = `
-                    <div class="text-center p-6 bg-red-50 rounded-lg">
-                        <h3 class="text-lg font-semibold text-red-800 mb-2">ต้องการ API Key</h3>
-                        <p class="text-red-600 mb-4">กรุณาไปที่ <a href="https://jsonbin.io" target="_blank" class="underline">JSONBin.io</a> เพื่อสร้าง API Key</p>
-                        <p class="text-sm text-red-500">แทนที่ '$2a$10$YOUR_ACTUAL_API_KEY_HERE' ในโค้ดด้วย API Key จริงของคุณ</p>
-                    </div>
-                `;
-                return;
-            }
+
             
             // Set today's date
             document.getElementById('attendance-date').valueAsDate = new Date();
@@ -1077,5 +1066,5 @@
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c916f497f27992',t:'MTc1NDc2MTc2Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c91c87e2537dc0',t:'MTc1NDc2MTk5MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
