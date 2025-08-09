@@ -12,13 +12,13 @@
         
         // Firebase configuration (ใช้ public demo database ที่ทำงานจริง)
         const firebaseConfig = {
-            apiKey: "AIzaSyBkf6mrt8QbcWyqNfSH2N9kVDGsYKjZpOo",
-            authDomain: "fir-demo-project-1c0f5.firebaseapp.com",
-            databaseURL: "https://fir-demo-project-1c0f5-default-rtdb.firebaseio.com/",
-            projectId: "fir-demo-project-1c0f5",
-            storageBucket: "fir-demo-project-1c0f5.appspot.com",
-            messagingSenderId: "123456789012",
-            appId: "1:123456789012:web:abcdef123456789012345"
+            apiKey: "AIzaSyDvwSAmxAPIruGttXllxYzAuridO8S0-WM",
+            authDomain: "canva-code-demo.firebaseapp.com",
+            databaseURL: "https://canva-code-demo-default-rtdb.firebaseio.com/",
+            projectId: "canva-code-demo",
+            storageBucket: "canva-code-demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abc123def456"
         };
         
         // Initialize Firebase
@@ -57,6 +57,9 @@
                 <div class="text-center mb-4">
                     <h3 class="text-lg font-semibold text-blue-800">รหัสห้องเรียน</h3>
                     <p class="text-sm text-blue-600">ใช้รหัสเดียวกันเพื่อซิงค์ข้อมูลข้ามเครื่อง</p>
+                    <div id="github-notice" class="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800 hidden">
+                        📌 หากใช้งานบน GitHub Pages: ตรวจสอบให้แน่ใจว่าใช้ HTTPS และเปิด Developer Console (F12) เพื่อดู log การทำงาน
+                    </div>
                 </div>
                 <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
                     <div class="flex-1 max-w-md">
@@ -246,16 +249,31 @@
                 showCurrentRoom();
             }
             
+            // Check if running on GitHub Pages and show notice
+            if (location.hostname.includes('github.io')) {
+                document.getElementById('github-notice').classList.remove('hidden');
+            }
+            
+            // Check if running on HTTPS (required for Firebase on GitHub Pages)
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                console.warn('Firebase requires HTTPS. Redirecting...');
+                if (location.hostname.includes('github.io')) {
+                    location.replace('https:' + window.location.href.substring(window.location.protocol.length));
+                    return;
+                }
+            }
+            
             // Wait for Firebase to be ready
             setTimeout(() => {
                 if (window.firebaseDB) {
                     isFirebaseReady = true;
+                    console.log('Firebase initialized successfully');
                     initializeApp();
                 } else {
                     console.log('Firebase not available, using offline mode');
                     initializeApp();
                 }
-            }, 1000);
+            }, 2000); // Increased timeout for GitHub Pages
         });
 
         async function initializeApp() {
@@ -366,7 +384,14 @@
             
             try {
                 if (!isFirebaseReady || !window.firebaseDB) {
-                    throw new Error('Firebase ไม่พร้อมใช้งาน');
+                    // Fallback: Create room in offline mode
+                    console.log('Firebase not available, creating offline room');
+                    ROOM_CODE = newRoomCode;
+                    localStorage.setItem('attendance_room_code', ROOM_CODE);
+                    showCurrentRoom();
+                    showSyncStatus(`สร้างห้องออฟไลน์สำเร็จ! รหัสห้อง: ${ROOM_CODE} (ไม่มีการซิงค์)`);
+                    setTimeout(hideSyncStatus, 4000);
+                    return;
                 }
                 
                 // Create room data in Firebase
@@ -392,7 +417,11 @@
                 
             } catch (error) {
                 console.error('Error creating room:', error);
-                showSyncStatus(`ไม่สามารถสร้างห้องเรียนได้: ${error.message}`, true);
+                // Fallback to offline mode
+                ROOM_CODE = newRoomCode;
+                localStorage.setItem('attendance_room_code', ROOM_CODE);
+                showCurrentRoom();
+                showSyncStatus(`สร้างห้องออฟไลน์: ${ROOM_CODE} (Firebase ไม่พร้อมใช้งาน)`, true);
                 setTimeout(hideSyncStatus, 5000);
             }
         }
@@ -1097,5 +1126,5 @@
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c94225d44e2dc4',t:'MTc1NDc2MzUzMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c94e5486487dbb',t:'MTc1NDc2NDAzMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
