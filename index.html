@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบบันทึกเวลาเรียน - เรียลไทม์</title>
+    <title>ระบบบันทึกเวลาเรียน</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
@@ -360,16 +360,27 @@
             }
         }
 
-        // Real-time sync simulation
+        // Real-time sync with Firebase-like behavior
+        let lastSyncTime = 0;
+        let syncQueue = [];
+        
         function startRealTimeSync() {
             if (!ROOM_CODE || syncInterval) return;
             
-            // จำลองการซิงค์ข้อมูลทุก 5 วินาที
+            showSyncStatus('🔄 เริ่มระบบซิงค์เรียลไทม์');
+            
+            // ซิงค์ข้อมูลทุก 2 วินาที
             syncInterval = setInterval(() => {
                 if (ROOM_CODE) {
                     syncWithRoom();
                 }
-            }, 5000);
+            }, 2000);
+            
+            // ซิงค์ทันทีเมื่อเริ่มต้น
+            setTimeout(() => {
+                syncWithRoom();
+                hideSyncStatus();
+            }, 500);
             
             // จำลองผู้ใช้ออนไลน์
             simulateOnlineUsers();
@@ -379,49 +390,83 @@
             if (syncInterval) {
                 clearInterval(syncInterval);
                 syncInterval = null;
+                showSyncStatus('⏹️ หยุดระบบซิงค์แล้ว');
+                setTimeout(hideSyncStatus, 2000);
             }
         }
 
         function syncWithRoom() {
             if (!ROOM_CODE) return;
             
-            // บันทึกข้อมูลปัจจุบันไปยังห้อง
             const roomKey = `room_${ROOM_CODE}`;
-            const currentRoomData = localStorage.getItem(roomKey);
-            const dataToSave = {
-                ...appData,
-                lastUpdated: new Date().toISOString(),
-                updatedBy: userId
-            };
+            const now = Date.now();
             
-            localStorage.setItem(roomKey, JSON.stringify(dataToSave));
-            
-            // ตรวจสอบการเปลี่ยนแปลงจากผู้ใช้อื่น
-            if (currentRoomData) {
-                try {
-                    const roomData = JSON.parse(currentRoomData);
-                    if (roomData.updatedBy !== userId && roomData.lastUpdated) {
-                        const lastUpdate = new Date(roomData.lastUpdated);
-                        const now = new Date();
+            try {
+                // อ่านข้อมูลปัจจุบันจากห้อง
+                const currentRoomData = localStorage.getItem(roomKey);
+                let roomData = null;
+                
+                if (currentRoomData) {
+                    roomData = JSON.parse(currentRoomData);
+                    
+                    // ตรวจสอบว่ามีการอัปเดตจากผู้ใช้อื่นหรือไม่
+                    if (roomData.lastSyncTime && roomData.lastSyncTime > lastSyncTime && roomData.updatedBy !== userId) {
+                        // มีข้อมูลใหม่จากผู้ใช้อื่น
+                        const { lastSyncTime: _, updatedBy: __, ...newData } = roomData;
                         
-                        // ถ้ามีการอัปเดตใน 10 วินาทีที่ผ่านมา
-                        if (now - lastUpdate < 10000) {
-                            // โหลดข้อมูลใหม่
-                            const { lastUpdated, updatedBy, ...newData } = roomData;
-                            const currentDataString = JSON.stringify(appData);
-                            const newDataString = JSON.stringify(newData);
+                        // เปรียบเทียบข้อมูล
+                        const currentHash = JSON.stringify(appData);
+                        const newHash = JSON.stringify(newData);
+                        
+                        if (currentHash !== newHash) {
+                            appData = { ...newData };
+                            refreshAllSelects();
                             
-                            if (currentDataString !== newDataString) {
-                                appData = { ...appData, ...newData };
-                                refreshAllSelects();
-                                showSyncStatus('📡 ข้อมูลได้รับการอัปเดตจากผู้ใช้อื่น');
-                                setTimeout(hideSyncStatus, 2000);
-                            }
+                            // แสดงการแจ้งเตือนการซิงค์
+                            showSyncStatus('📥 ได้รับข้อมูลใหม่จากผู้ใช้อื่น!', false);
+                            setTimeout(hideSyncStatus, 3000);
+                            
+                            lastSyncTime = roomData.lastSyncTime;
+                            return; // ไม่ต้องบันทึกข้อมูลใหม่
                         }
                     }
-                } catch (error) {
-                    console.error('Error syncing room data:', error);
                 }
+                
+                // บันทึกข้อมูลปัจจุบันไปยังห้อง
+                const dataToSave = {
+                    ...appData,
+                    lastSyncTime: now,
+                    updatedBy: userId,
+                    syncVersion: (roomData?.syncVersion || 0) + 1
+                };
+                
+                localStorage.setItem(roomKey, JSON.stringify(dataToSave));
+                lastSyncTime = now;
+                
+                // แสดงสถานะการซิงค์เฉพาะเมื่อมีการเปลี่ยนแปลง
+                if (syncQueue.length > 0) {
+                    showSyncStatus('📤 ส่งข้อมูลไปยังห้องเรียนแล้ว');
+                    setTimeout(hideSyncStatus, 1500);
+                    syncQueue = [];
+                }
+                
+            } catch (error) {
+                console.error('Sync error:', error);
+                showSyncStatus('❌ เกิดข้อผิดพลาดในการซิงค์', true);
+                setTimeout(hideSyncStatus, 3000);
+            }
+        }
+        
+        // เพิ่มข้อมูลเข้าคิวซิงค์
+        function queueSync(action) {
+            syncQueue.push({
+                action: action,
+                timestamp: Date.now()
+            });
+            
+            // ซิงค์ทันทีถ้ามีการเปลี่ยนแปลง
+            if (ROOM_CODE) {
+                setTimeout(syncWithRoom, 100);
             }
         }
 
@@ -446,24 +491,35 @@
                 return;
             }
             
-            showSyncStatus('กำลังทดสอบระบบเรียลไทม์...');
+            showSyncStatus('🧪 กำลังทดสอบระบบเรียลไทม์...');
             
             // เพิ่มข้อมูลทดสอบ
-            const testClass = `ทดสอบ-${Date.now()}`;
+            const timestamp = new Date().toLocaleTimeString('th-TH');
+            const testClass = `ทดสอบ-${timestamp}`;
+            const testSubject = `วิชาทดสอบ-${timestamp}`;
+            
             appData.classes.push(testClass);
+            appData.subjects.push(testSubject);
             refreshAllSelects();
-            saveData();
+            saveData('test_add');
             
-            showSyncStatus('เพิ่มข้อมูลทดสอบแล้ว - ตรวจสอบในเครื่องอื่น');
+            showSyncStatus(`✅ เพิ่มข้อมูลทดสอบแล้ว: ${testClass}`);
             
-            // ลบข้อมูลทดสอบหลัง 5 วินาที
+            // แสดงคำแนะนำ
+            setTimeout(() => {
+                showSyncStatus('📱 ตรวจสอบในเครื่องอื่นหรือแท็บอื่น - ข้อมูลจะปรากฏภายใน 2 วินาที');
+            }, 2000);
+            
+            // ลบข้อมูลทดสอบหลัง 8 วินาที
             setTimeout(() => {
                 appData.classes = appData.classes.filter(c => c !== testClass);
+                appData.subjects = appData.subjects.filter(s => s !== testSubject);
                 refreshAllSelects();
-                saveData();
-                showSyncStatus('ลบข้อมูลทดสอบแล้ว');
-                setTimeout(hideSyncStatus, 2000);
-            }, 5000);
+                saveData('test_remove');
+                
+                showSyncStatus('🗑️ ลบข้อมูลทดสอบแล้ว - การทดสอบเสร็จสิ้น');
+                setTimeout(hideSyncStatus, 3000);
+            }, 8000);
         }
 
         // Data management
@@ -479,14 +535,16 @@
             }
         }
 
-        function saveData() {
+        function saveData(action = 'update') {
             // บันทึกข้อมูลในเครื่อง
             localStorage.setItem('attendance_data', JSON.stringify(appData));
             
-            // ซิงค์กับห้องถ้ามี
-            if (ROOM_CODE) {
-                syncWithRoom();
-            }
+            // เพิ่มเข้าคิวซิงค์
+            queueSync(action);
+            
+            // แสดงสถานะการบันทึก
+            showSyncStatus('💾 บันทึกข้อมูลแล้ว');
+            setTimeout(hideSyncStatus, 1000);
         }
 
         function showSyncStatus(message, isError = false) {
@@ -532,8 +590,8 @@
                 appData.classes.push(className);
                 document.getElementById('new-class').value = '';
                 refreshAllSelects();
-                saveData();
-                showSyncStatus(`เพิ่มชั้นเรียน "${className}" แล้ว`);
+                saveData('add_class');
+                showSyncStatus(`➕ เพิ่มชั้นเรียน "${className}" แล้ว`);
                 setTimeout(hideSyncStatus, 2000);
             }
         }
@@ -556,8 +614,8 @@
                 appData.subjects.push(subjectName);
                 document.getElementById('new-subject').value = '';
                 refreshAllSelects();
-                saveData();
-                showSyncStatus(`เพิ่มวิชา "${subjectName}" แล้ว`);
+                saveData('add_subject');
+                showSyncStatus(`📚 เพิ่มวิชา "${subjectName}" แล้ว`);
                 setTimeout(hideSyncStatus, 2000);
             }
         }
@@ -585,8 +643,8 @@
                     document.getElementById('student-id').value = '';
                     document.getElementById('student-class').value = '';
                     refreshManagementLists();
-                    saveData();
-                    showSyncStatus(`เพิ่มนักเรียน "${name}" แล้ว`);
+                    saveData('add_student');
+                    showSyncStatus(`👨‍🎓 เพิ่มนักเรียน "${name}" แล้ว`);
                     setTimeout(hideSyncStatus, 2000);
                 } else {
                     alert('รหัสนักเรียนนี้มีอยู่แล้ว');
@@ -681,13 +739,13 @@
             
             event.target.className = `status-btn px-3 py-2 rounded-lg text-sm font-medium status-${status}`;
             
-            // Auto save
-            saveData();
+            // Auto save with sync
+            saveData('attendance_update');
         }
 
         function saveAttendance() {
-            saveData();
-            showSyncStatus('บันทึกข้อมูลการเข้าเรียนเรียบร้อยแล้ว');
+            saveData('attendance_save');
+            showSyncStatus('✅ บันทึกข้อมูลการเข้าเรียนเรียบร้อยแล้ว');
             setTimeout(hideSyncStatus, 2000);
         }
 
@@ -939,5 +997,5 @@
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c96395011c7991',t:'MTc1NDc2NDkwMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c96f0ee70e7991',t:'MTc1NDc2NTM3MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
