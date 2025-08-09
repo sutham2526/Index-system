@@ -502,7 +502,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">รหัสซิงค์</label>
                                 <div class="flex items-center space-x-2">
-                                    <div class="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-sm font-mono text-gray-800 break-all" id="sync-id-display">
+                                    <div class="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-sm font-mono text-gray-800 break-all" id="sync_id_display">
                                         กำลังสร้างรหัส...
                                     </div>
                                     <button id="copy-sync-code" class="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium whitespace-nowrap">
@@ -959,7 +959,9 @@
         function generateSyncId() {
             const timestamp = Date.now();
             const random = Math.random().toString(36).substr(2, 9);
-            return `sync${timestamp}${random}`;
+            const syncId = `sync${timestamp}${random}`;
+         // ลบช่องว่างและจุดออก (ถ้ามี)
+         return syncId.replace(/[\s.]/g, '');
         }
         
         // สร้างข้อมูลเริ่มต้นในคลาวด์
@@ -3696,6 +3698,7 @@
     </script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96acb738d5087336',t:'MTc1NDQ2NDIzOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
+
 
 
 
