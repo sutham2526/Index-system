@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบบันทึกเวลาเรียน</title>
+    <title>ระบบบันทึกเวลาเรียน - Google Sheets</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
@@ -20,6 +20,10 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        .setup-highlight {
+            background: linear-gradient(45deg, #fef3c7, #fde68a);
+            border: 2px dashed #f59e0b;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
@@ -27,61 +31,75 @@
         <!-- Header -->
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
             <h1 class="text-3xl font-bold text-gray-800 text-center mb-2">ระบบบันทึกเวลาเรียน</h1>
-            <p class="text-gray-600 text-center">จัดการข้อมูลการเข้าเรียนของนักเรียนแบบเรียลไทม์</p>
+            <p class="text-gray-600 text-center">เชื่อมต่อกับ Google Sheets - ข้อมูลซิงค์แบบเรียลไทม์</p>
             
             <!-- Connection Status -->
             <div class="mt-4 text-center">
                 <div id="connection-status" class="inline-flex items-center px-4 py-2 rounded-lg">
                     <div id="status-indicator" class="w-3 h-3 rounded-full mr-2"></div>
-                    <span id="status-text">กำลังเชื่อมต่อ...</span>
+                    <span id="status-text">ยังไม่ได้ตั้งค่า Google Sheets</span>
                 </div>
             </div>
             
-            <!-- Room Code Section -->
-            <div id="room-setup" class="mt-6 p-4 bg-blue-50 rounded-lg">
-                <div class="text-center mb-4">
-                    <h3 class="text-lg font-semibold text-blue-800">รหัสห้องเรียน</h3>
-                    <p class="text-sm text-blue-600">ใช้รหัสเดียวกันเพื่อซิงค์ข้อมูลข้ามเครื่อง</p>
-                    <div id="online-users" class="mt-2 p-2 bg-blue-100 border border-blue-300 rounded text-xs text-blue-800 hidden">
-                        👥 ผู้ใช้งานออนไลน์: <span id="user-count">0</span> คน
+            <!-- Setup Instructions -->
+            <div id="setup-instructions" class="mt-6 p-6 setup-highlight rounded-lg">
+                <h3 class="text-lg font-bold text-amber-800 mb-4">🔧 ขั้นตอนการตั้งค่า Google Sheets</h3>
+                <div class="space-y-3 text-sm text-amber-700">
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-amber-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">1</span>
+                        <div>
+                            <strong>สร้าง Google Sheets:</strong>
+                            <p>ไป <a href="https://sheets.google.com" target="_blank" class="text-blue-600 underline">sheets.google.com</a> → สร้างไฟล์ใหม่ชื่อ "ระบบเวลาเรียน"</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-amber-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">2</span>
+                        <div>
+                            <strong>สร้าง 4 แผ่นงาน:</strong>
+                            <p>Classes, Subjects, Students, Attendance</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-amber-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">3</span>
+                        <div>
+                            <strong>ตั้งค่า Apps Script:</strong>
+                            <p>Extensions → Apps Script → วางโค้ดที่ให้ → Deploy</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-amber-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">4</span>
+                        <div>
+                            <strong>ใส่ URL:</strong>
+                            <p>คัดลอก Web App URL มาใส่ในช่องด้านล่าง</p>
+                        </div>
                     </div>
                 </div>
-                <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
-                    <div class="flex-1 max-w-md">
-                        <input type="text" id="room-code-input" placeholder="กรอกรหัสห้องเรียน (6 หลัก)" 
-                               class="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center font-mono text-lg"
-                               maxlength="6">
-                    </div>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="joinRoom()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
-                            เข้าร่วมห้อง
-                        </button>
-                        <button onclick="createNewRoom()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
-                            สร้างห้องใหม่
-                        </button>
-                        <button onclick="testRealTime()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
-                            ทดสอบเรียลไทม์
-                        </button>
-                    </div>
-                </div>
-                <div id="current-room" class="mt-4 text-center hidden">
-                    <div class="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg">
-                        <span class="font-medium">รหัสห้องปัจจุบัน: </span>
-                        <span id="current-room-code" class="font-mono text-lg ml-2"></span>
-                        <button onclick="leaveRoom()" class="ml-3 text-red-600 hover:text-red-800 text-sm">
-                            ออกจากห้อง
-                        </button>
-                    </div>
-                </div>
+                <button onclick="showSetupDetails()" class="mt-4 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm">
+                    ดูรายละเอียดการตั้งค่า
+                </button>
             </div>
             
-            <div class="flex justify-center mt-4">
-                <div class="flex space-x-2 text-sm">
-                    <span class="px-3 py-1 bg-green-500 text-white rounded-full">/ = มาเรียน</span>
-                    <span class="px-3 py-1 bg-red-500 text-white rounded-full">ข = ขาดเรียน</span>
-                    <span class="px-3 py-1 bg-yellow-500 text-white rounded-full">ล = ลากิจ</span>
-                    <span class="px-3 py-1 bg-purple-500 text-white rounded-full">ป = ลาป่วย</span>
-                    <span class="px-3 py-1 bg-orange-500 text-white rounded-full">ส = สาย</span>
+            <!-- Google Sheets Configuration -->
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">⚙️ การตั้งค่า Google Sheets</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-blue-700 mb-2">Google Apps Script Web App URL:</label>
+                        <input type="url" id="sheets-url" placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec" 
+                               class="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        <p class="text-xs text-blue-600 mt-1">ใส่ URL ที่ได้จาก Apps Script Deploy</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="testConnection()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                            ทดสอบการเชื่อมต่อ
+                        </button>
+                        <button onclick="saveConfiguration()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">
+                            บันทึกการตั้งค่า
+                        </button>
+                        <button onclick="initializeSheets()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm">
+                            เริ่มต้นข้อมูล
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -92,6 +110,7 @@
                 <button onclick="showTab('attendance')" id="tab-attendance" class="flex-1 py-4 px-6 text-center font-medium border-b-2 border-blue-500 text-blue-600">บันทึกเวลาเรียน</button>
                 <button onclick="showTab('manage')" id="tab-manage" class="flex-1 py-4 px-6 text-center font-medium text-gray-500 hover:text-gray-700">จัดการข้อมูล</button>
                 <button onclick="showTab('history')" id="tab-history" class="flex-1 py-4 px-6 text-center font-medium text-gray-500 hover:text-gray-700">ประวัติการเรียน</button>
+                <button onclick="showTab('setup')" id="tab-setup" class="flex-1 py-4 px-6 text-center font-medium text-gray-500 hover:text-gray-700">คู่มือตั้งค่า</button>
             </div>
         </div>
 
@@ -189,36 +208,366 @@
             </div>
         </div>
 
-        <!-- Sync Status -->
+        <!-- Setup Tab -->
+        <div id="setup-tab" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Step 1: Create Google Sheets -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
+                        สร้าง Google Sheets
+                    </h2>
+                    <div class="space-y-4">
+                        <p>1. ไปที่ <a href="https://sheets.google.com" target="_blank" class="text-blue-600 underline">sheets.google.com</a></p>
+                        <p>2. คลิก "สร้างสเปรดชีตใหม่"</p>
+                        <p>3. ตั้งชื่อไฟล์ว่า "ระบบเวลาเรียน"</p>
+                        <p>4. สร้าง 4 แผ่นงาน (Sheet) ดังนี้:</p>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold">แผ่น "Classes":</h4>
+                                    <pre class="text-xs bg-white p-2 rounded mt-1">A1: ClassName
+A2: ม.1/1
+A3: ม.1/2
+A4: ม.2/1</pre>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">แผ่น "Subjects":</h4>
+                                    <pre class="text-xs bg-white p-2 rounded mt-1">A1: SubjectName
+A2: คณิตศาสตร์
+A3: ภาษาไทย
+A4: ภาษาอังกฤษ</pre>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">แผ่น "Students":</h4>
+                                    <pre class="text-xs bg-white p-2 rounded mt-1">A1: StudentID | B1: Name | C1: Class
+A2: 001 | B2: นางสาวสมใจ | C2: ม.1/1
+A3: 002 | B3: นายสมชาย | C3: ม.1/1</pre>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold">แผ่น "Attendance":</h4>
+                                    <pre class="text-xs bg-white p-2 rounded mt-1">A1: Date | B1: Class | C1: Subject | D1: StudentID | E1: Status
+(ข้อมูลจะเพิ่มอัตโนมัติ)</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Apps Script -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
+                        ตั้งค่า Apps Script
+                    </h2>
+                    <div class="space-y-4">
+                        <p>1. ใน Google Sheets ไปที่ <strong>Extensions → Apps Script</strong></p>
+                        <p>2. ลบโค้ดเดิมทั้งหมด แล้ววางโค้ดนี้:</p>
+                        <div class="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto">
+                            <button onclick="copyAppsScriptCode()" class="float-right bg-blue-600 text-white px-2 py-1 rounded text-xs mb-2">คัดลอก</button>
+                            <pre id="apps-script-code">function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet();
+    
+    switch(data.action) {
+      case 'getClasses':
+        return getClasses(sheet);
+      case 'getSubjects':
+        return getSubjects(sheet);
+      case 'getStudents':
+        return getStudents(sheet, data.className);
+      case 'saveAttendance':
+        return saveAttendance(sheet, data);
+      case 'getAttendance':
+        return getAttendance(sheet, data);
+      case 'addClass':
+        return addClass(sheet, data.className);
+      case 'addSubject':
+        return addSubject(sheet, data.subjectName);
+      case 'addStudent':
+        return addStudent(sheet, data);
+      case 'initializeData':
+        return initializeData(sheet);
+      case 'testConnection':
+        return testConnection();
+      default:
+        return createResponse({success: false, message: 'Unknown action'});
+    }
+  } catch (error) {
+    return createResponse({success: false, message: error.toString()});
+  }
+}
+
+function doGet(e) {
+  return testConnection();
+}
+
+function createResponse(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function testConnection() {
+  return createResponse({
+    success: true, 
+    message: 'เชื่อมต่อ Google Sheets สำเร็จ!',
+    timestamp: new Date().toISOString()
+  });
+}
+
+function getClasses(sheet) {
+  const classSheet = sheet.getSheetByName('Classes');
+  if (!classSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Classes'});
+  }
+  
+  const data = classSheet.getRange('A2:A').getValues();
+  const classes = data.filter(row => row[0] !== '').map(row => row[0]);
+  
+  return createResponse({success: true, data: classes});
+}
+
+function getSubjects(sheet) {
+  const subjectSheet = sheet.getSheetByName('Subjects');
+  if (!subjectSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Subjects'});
+  }
+  
+  const data = subjectSheet.getRange('A2:A').getValues();
+  const subjects = data.filter(row => row[0] !== '').map(row => row[0]);
+  
+  return createResponse({success: true, data: subjects});
+}
+
+function getStudents(sheet, className) {
+  const studentSheet = sheet.getSheetByName('Students');
+  if (!studentSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Students'});
+  }
+  
+  const data = studentSheet.getRange('A2:C').getValues();
+  const students = data
+    .filter(row => row[0] !== '' && row[2] === className)
+    .map(row => ({id: row[0], name: row[1], class: row[2]}));
+  
+  return createResponse({success: true, data: students});
+}
+
+function saveAttendance(sheet, data) {
+  const attendanceSheet = sheet.getSheetByName('Attendance');
+  if (!attendanceSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Attendance'});
+  }
+  
+  // ลบข้อมูลเก่าของวันนี้
+  const existingData = attendanceSheet.getRange('A2:E').getValues();
+  const rowsToDelete = [];
+  
+  for (let i = 0; i < existingData.length; i++) {
+    if (existingData[i][0] === data.date && 
+        existingData[i][1] === data.className && 
+        existingData[i][2] === data.subject) {
+      rowsToDelete.push(i + 2); // +2 เพราะเริ่มจากแถว 2
+    }
+  }
+  
+  // ลบจากล่างขึ้นบน
+  for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+    attendanceSheet.deleteRow(rowsToDelete[i]);
+  }
+  
+  // เพิ่มข้อมูลใหม่
+  const newData = [];
+  Object.keys(data.attendance).forEach(studentId => {
+    newData.push([
+      data.date,
+      data.className,
+      data.subject,
+      studentId,
+      data.attendance[studentId]
+    ]);
+  });
+  
+  if (newData.length > 0) {
+    const lastRow = attendanceSheet.getLastRow();
+    attendanceSheet.getRange(lastRow + 1, 1, newData.length, 5).setValues(newData);
+  }
+  
+  return createResponse({success: true, message: 'บันทึกข้อมูลสำเร็จ'});
+}
+
+function getAttendance(sheet, data) {
+  const attendanceSheet = sheet.getSheetByName('Attendance');
+  if (!attendanceSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Attendance'});
+  }
+  
+  const allData = attendanceSheet.getRange('A2:E').getValues();
+  const filteredData = allData.filter(row => 
+    row[0] === data.date && 
+    row[1] === data.className && 
+    row[2] === data.subject
+  );
+  
+  const attendance = {};
+  filteredData.forEach(row => {
+    attendance[row[3]] = row[4]; // studentId: status
+  });
+  
+  return createResponse({success: true, data: attendance});
+}
+
+function addClass(sheet, className) {
+  const classSheet = sheet.getSheetByName('Classes');
+  if (!classSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Classes'});
+  }
+  
+  const lastRow = classSheet.getLastRow();
+  classSheet.getRange(lastRow + 1, 1).setValue(className);
+  
+  return createResponse({success: true, message: 'เพิ่มชั้นเรียนสำเร็จ'});
+}
+
+function addSubject(sheet, subjectName) {
+  const subjectSheet = sheet.getSheetByName('Subjects');
+  if (!subjectSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Subjects'});
+  }
+  
+  const lastRow = subjectSheet.getLastRow();
+  subjectSheet.getRange(lastRow + 1, 1).setValue(subjectName);
+  
+  return createResponse({success: true, message: 'เพิ่มวิชาสำเร็จ'});
+}
+
+function addStudent(sheet, studentData) {
+  const studentSheet = sheet.getSheetByName('Students');
+  if (!studentSheet) {
+    return createResponse({success: false, message: 'ไม่พบแผ่น Students'});
+  }
+  
+  const lastRow = studentSheet.getLastRow();
+  studentSheet.getRange(lastRow + 1, 1, 1, 3).setValues([[
+    studentData.id,
+    studentData.name,
+    studentData.class
+  ]]);
+  
+  return createResponse({success: true, message: 'เพิ่มนักเรียนสำเร็จ'});
+}
+
+function initializeData(sheet) {
+  // สร้างแผ่นงานถ้ายังไม่มี
+  const sheets = ['Classes', 'Subjects', 'Students', 'Attendance'];
+  
+  sheets.forEach(sheetName => {
+    let targetSheet = sheet.getSheetByName(sheetName);
+    if (!targetSheet) {
+      targetSheet = sheet.insertSheet(sheetName);
+    }
+    
+    // ตั้งค่าหัวตาราง
+    switch(sheetName) {
+      case 'Classes':
+        targetSheet.getRange('A1').setValue('ClassName');
+        if (targetSheet.getLastRow() === 1) {
+          targetSheet.getRange('A2:A5').setValues([['ม.1/1'], ['ม.1/2'], ['ม.2/1'], ['ม.2/2']]);
+        }
+        break;
+      case 'Subjects':
+        targetSheet.getRange('A1').setValue('SubjectName');
+        if (targetSheet.getLastRow() === 1) {
+          targetSheet.getRange('A2:A5').setValues([['คณิตศาสตร์'], ['ภาษาไทย'], ['ภาษาอังกฤษ'], ['วิทยาศาสตร์']]);
+        }
+        break;
+      case 'Students':
+        targetSheet.getRange('A1:C1').setValues([['StudentID', 'Name', 'Class']]);
+        if (targetSheet.getLastRow() === 1) {
+          targetSheet.getRange('A2:C6').setValues([
+            ['001', 'นางสาวสมใจ ใจดี', 'ม.1/1'],
+            ['002', 'นายสมชาย ดีใจ', 'ม.1/1'],
+            ['003', 'นางสาวสมหญิง รักเรียน', 'ม.1/2'],
+            ['004', 'นายสมศักดิ์ เรียนดี', 'ม.2/1'],
+            ['005', 'นางสาวสมปอง ขยันเรียน', 'ม.2/2']
+          ]);
+        }
+        break;
+      case 'Attendance':
+        targetSheet.getRange('A1:E1').setValues([['Date', 'Class', 'Subject', 'StudentID', 'Status']]);
+        break;
+    }
+  });
+  
+  return createResponse({success: true, message: 'เริ่มต้นข้อมูลสำเร็จ'});
+}</pre>
+                        </div>
+                        <p>3. คลิก <strong>บันทึก</strong> (Ctrl+S)</p>
+                        <p>4. คลิก <strong>Deploy → New deployment</strong></p>
+                        <p>5. เลือก Type: <strong>Web app</strong></p>
+                        <p>6. Execute as: <strong>Me</strong></p>
+                        <p>7. Who has access: <strong>Anyone</strong></p>
+                        <p>8. คลิก <strong>Deploy</strong></p>
+                        <p>9. คัดลอก <strong>Web app URL</strong> ที่ได้</p>
+                    </div>
+                </div>
+
+                <!-- Step 3: Configure System -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <span class="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
+                        ตั้งค่าระบบ
+                    </h2>
+                    <div class="space-y-4">
+                        <p>1. นำ Web app URL ที่ได้มาใส่ในช่อง "Google Apps Script Web App URL" ด้านบน</p>
+                        <p>2. คลิก "ทดสอบการเชื่อมต่อ" เพื่อตรวจสอบ</p>
+                        <p>3. คลิก "เริ่มต้นข้อมูล" เพื่อสร้างข้อมูลตัวอย่าง</p>
+                        <p>4. คลิก "บันทึกการตั้งค่า" เพื่อเก็บ URL</p>
+                        <p>5. เริ่มใช้งานระบบได้เลย!</p>
+                    </div>
+                </div>
+
+                <!-- Troubleshooting -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-red-600">🔧 แก้ปัญหาที่พบบ่อย</h2>
+                    <div class="space-y-3 text-sm">
+                        <div class="p-3 bg-red-50 rounded-lg">
+                            <strong>ปัญหา:</strong> "Script function not found"<br>
+                            <strong>แก้ไข:</strong> ตรวจสอบว่าวางโค้ด Apps Script ครบถ้วนแล้ว และบันทึกแล้ว
+                        </div>
+                        <div class="p-3 bg-yellow-50 rounded-lg">
+                            <strong>ปัญหา:</strong> "Permission denied"<br>
+                            <strong>แก้ไข:</strong> ตั้งค่า "Who has access" เป็น "Anyone" ใน Deploy settings
+                        </div>
+                        <div class="p-3 bg-blue-50 rounded-lg">
+                            <strong>ปัญหา:</strong> ข้อมูลไม่อัปเดต<br>
+                            <strong>แก้ไข:</strong> รอสักครู่ Google Sheets อาจใช้เวลาในการซิงค์
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
         <div class="fixed bottom-4 right-4 space-y-2">
             <div id="sync-status" class="bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg hidden">
-                <span id="sync-message">กำลังซิงค์ข้อมูล...</span>
+                <span id="sync-message">กำลังประมวลผล...</span>
             </div>
-            <button onclick="resetSystem()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
-                รีเซ็ตระบบ
-            </button>
         </div>
     </div>
 
     <script>
-        // ใช้ localStorage เป็นหลัก พร้อมระบบ Real-time จำลอง
-        let ROOM_CODE = localStorage.getItem('attendance_room_code') || null;
-        let isOnline = false;
-        let onlineUsers = 1;
-        let syncInterval = null;
-        let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        // Configuration
+        let SHEETS_URL = localStorage.getItem('sheets_url') || '';
+        let isConnected = false;
 
-        // Data structure
+        // Data cache
         let appData = {
-            classes: ['ม.1/1', 'ม.1/2', 'ม.2/1', 'ม.2/2'],
-            subjects: ['คณิตศาสตร์', 'ภาษาไทย', 'ภาษาอังกฤษ', 'วิทยาศาสตร์'],
-            students: [
-                { name: 'นางสาวสมใจ ใจดี', id: '001', class: 'ม.1/1' },
-                { name: 'นายสมชาย ดีใจ', id: '002', class: 'ม.1/1' },
-                { name: 'นางสาวสมหญิง รักเรียน', id: '003', class: 'ม.1/2' },
-                { name: 'นายสมศักดิ์ เรียนดี', id: '004', class: 'ม.2/1' },
-                { name: 'นางสาวสมปอง ขยันเรียน', id: '005', class: 'ม.2/2' }
-            ],
+            classes: [],
+            subjects: [],
+            students: [],
             attendance: {}
         };
 
@@ -230,34 +579,16 @@
             document.getElementById('history-start-date').value = today;
             document.getElementById('history-end-date').value = today;
             
-            // Initialize connection
-            initializeConnection();
-            
-            // Load data
-            loadLocalData();
-            refreshAllSelects();
-            
-            // Show current room if exists
-            if (ROOM_CODE) {
-                showCurrentRoom();
-                startRealTimeSync();
+            // Load saved configuration
+            if (SHEETS_URL) {
+                document.getElementById('sheets-url').value = SHEETS_URL;
+                testConnection();
+            } else {
+                updateConnectionStatus('offline', 'ยังไม่ได้ตั้งค่า Google Sheets');
             }
         });
 
-        // Connection simulation
-        function initializeConnection() {
-            updateConnectionStatus('connecting', 'กำลังเชื่อมต่อ...');
-            
-            setTimeout(() => {
-                isOnline = true;
-                updateConnectionStatus('online', 'เชื่อมต่อเรียลไทม์แล้ว');
-                
-                if (ROOM_CODE) {
-                    startRealTimeSync();
-                }
-            }, 2000);
-        }
-
+        // Connection management
         function updateConnectionStatus(status, message) {
             const indicator = document.getElementById('status-indicator');
             const text = document.getElementById('status-text');
@@ -271,292 +602,148 @@
                 case 'online':
                     indicator.className = 'w-3 h-3 rounded-full mr-2 bg-green-500';
                     container.className = 'inline-flex items-center px-4 py-2 rounded-lg bg-green-100 text-green-800';
+                    isConnected = true;
+                    document.getElementById('setup-instructions').style.display = 'none';
                     break;
                 case 'offline':
                     indicator.className = 'w-3 h-3 rounded-full mr-2 bg-red-500';
                     container.className = 'inline-flex items-center px-4 py-2 rounded-lg bg-red-100 text-red-800';
+                    isConnected = false;
                     break;
             }
             
             text.textContent = message;
         }
 
-        // Room management
-        function generateRoomCode() {
-            return Math.random().toString(36).substr(2, 6).toUpperCase();
-        }
+        async function testConnection() {
+            const url = document.getElementById('sheets-url').value.trim();
+            if (!url) {
+                alert('กรุณาใส่ Google Apps Script URL');
+                return;
+            }
 
-        function createNewRoom() {
-            const newRoomCode = generateRoomCode();
-            ROOM_CODE = newRoomCode;
-            localStorage.setItem('attendance_room_code', ROOM_CODE);
-            
-            showCurrentRoom();
-            startRealTimeSync();
-            saveData();
-            
-            showSyncStatus(`สร้างห้องเรียนสำเร็จ! รหัสห้อง: ${ROOM_CODE}`);
+            updateConnectionStatus('connecting', 'กำลังทดสอบการเชื่อมต่อ...');
+            showSyncStatus('🔄 กำลังทดสอบการเชื่อมต่อ Google Sheets...');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateConnectionStatus('online', 'เชื่อมต่อ Google Sheets สำเร็จ!');
+                    showSyncStatus('✅ เชื่อมต่อ Google Sheets สำเร็จ!');
+                    SHEETS_URL = url;
+                    
+                    // Load initial data
+                    await loadAllData();
+                } else {
+                    throw new Error(result.message || 'การเชื่อมต่อล้มเหลว');
+                }
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                updateConnectionStatus('offline', 'การเชื่อมต่อล้มเหลว: ' + error.message);
+                showSyncStatus('❌ การเชื่อมต่อล้มเหลว: ' + error.message, true);
+            }
+
             setTimeout(hideSyncStatus, 3000);
         }
 
-        function joinRoom() {
-            const roomCode = document.getElementById('room-code-input').value.trim().toUpperCase();
-            if (!roomCode || roomCode.length !== 6) {
-                alert('กรุณากรอกรหัสห้องเรียน 6 หลัก');
+        function saveConfiguration() {
+            const url = document.getElementById('sheets-url').value.trim();
+            if (!url) {
+                alert('กรุณาใส่ Google Apps Script URL');
                 return;
             }
+
+            localStorage.setItem('sheets_url', url);
+            SHEETS_URL = url;
             
-            showSyncStatus('กำลังเข้าร่วมห้องเรียน...');
-            
-            // จำลองการค้นหาห้อง
-            setTimeout(() => {
-                // ตรวจสอบว่ามีข้อมูลห้องนี้ใน localStorage หรือไม่
-                const roomData = localStorage.getItem(`room_${roomCode}`);
-                
-                if (roomData) {
-                    // โหลดข้อมูลจากห้องที่มีอยู่
-                    try {
-                        const parsedData = JSON.parse(roomData);
-                        appData = { ...appData, ...parsedData };
-                        refreshAllSelects();
-                    } catch (error) {
-                        console.error('Error loading room data:', error);
-                    }
-                }
-                
-                ROOM_CODE = roomCode;
-                localStorage.setItem('attendance_room_code', ROOM_CODE);
-                
-                showCurrentRoom();
-                startRealTimeSync();
-                document.getElementById('room-code-input').value = '';
-                
-                showSyncStatus(`เข้าร่วมห้อง ${roomCode} สำเร็จ!`);
-                setTimeout(hideSyncStatus, 2000);
-            }, 1000);
+            showSyncStatus('💾 บันทึกการตั้งค่าแล้ว');
+            setTimeout(hideSyncStatus, 2000);
         }
 
-        function showCurrentRoom() {
-            if (ROOM_CODE) {
-                document.getElementById('current-room-code').textContent = ROOM_CODE;
-                document.getElementById('current-room').classList.remove('hidden');
-                document.getElementById('online-users').classList.remove('hidden');
-                updateUserCount();
+        async function initializeSheets() {
+            if (!SHEETS_URL) {
+                alert('กรุณาตั้งค่า Google Apps Script URL ก่อน');
+                return;
             }
-        }
 
-        function leaveRoom() {
-            if (confirm('ต้องการออกจากห้องเรียนนี้หรือไม่?')) {
-                stopRealTimeSync();
-                
-                ROOM_CODE = null;
-                localStorage.removeItem('attendance_room_code');
-                
-                document.getElementById('current-room').classList.add('hidden');
-                document.getElementById('online-users').classList.add('hidden');
-                
-                showSyncStatus('ออกจากห้องเรียนแล้ว');
-                setTimeout(hideSyncStatus, 2000);
-            }
-        }
+            showSyncStatus('🚀 กำลังเริ่มต้นข้อมูลใน Google Sheets...');
 
-        // Real-time sync with Firebase-like behavior
-        let lastSyncTime = 0;
-        let syncQueue = [];
-        
-        function startRealTimeSync() {
-            if (!ROOM_CODE || syncInterval) return;
-            
-            showSyncStatus('🔄 เริ่มระบบซิงค์เรียลไทม์');
-            
-            // ซิงค์ข้อมูลทุก 2 วินาที
-            syncInterval = setInterval(() => {
-                if (ROOM_CODE) {
-                    syncWithRoom();
-                }
-            }, 2000);
-            
-            // ซิงค์ทันทีเมื่อเริ่มต้น
-            setTimeout(() => {
-                syncWithRoom();
-                hideSyncStatus();
-            }, 500);
-            
-            // จำลองผู้ใช้ออนไลน์
-            simulateOnlineUsers();
-        }
-
-        function stopRealTimeSync() {
-            if (syncInterval) {
-                clearInterval(syncInterval);
-                syncInterval = null;
-                showSyncStatus('⏹️ หยุดระบบซิงค์แล้ว');
-                setTimeout(hideSyncStatus, 2000);
-            }
-        }
-
-        function syncWithRoom() {
-            if (!ROOM_CODE) return;
-            
-            const roomKey = `room_${ROOM_CODE}`;
-            const now = Date.now();
-            
             try {
-                // อ่านข้อมูลปัจจุบันจากห้อง
-                const currentRoomData = localStorage.getItem(roomKey);
-                let roomData = null;
+                const response = await callSheetsAPI('initializeData', {});
                 
-                if (currentRoomData) {
-                    roomData = JSON.parse(currentRoomData);
-                    
-                    // ตรวจสอบว่ามีการอัปเดตจากผู้ใช้อื่นหรือไม่
-                    if (roomData.lastSyncTime && roomData.lastSyncTime > lastSyncTime && roomData.updatedBy !== userId) {
-                        // มีข้อมูลใหม่จากผู้ใช้อื่น
-                        const { lastSyncTime: _, updatedBy: __, ...newData } = roomData;
-                        
-                        // เปรียบเทียบข้อมูล
-                        const currentHash = JSON.stringify(appData);
-                        const newHash = JSON.stringify(newData);
-                        
-                        if (currentHash !== newHash) {
-                            appData = { ...newData };
-                            refreshAllSelects();
-                            
-                            // แสดงการแจ้งเตือนการซิงค์
-                            showSyncStatus('📥 ได้รับข้อมูลใหม่จากผู้ใช้อื่น!', false);
-                            setTimeout(hideSyncStatus, 3000);
-                            
-                            lastSyncTime = roomData.lastSyncTime;
-                            return; // ไม่ต้องบันทึกข้อมูลใหม่
-                        }
-                    }
+                if (response.success) {
+                    showSyncStatus('✅ เริ่มต้นข้อมูลสำเร็จ!');
+                    await loadAllData();
+                } else {
+                    throw new Error(response.message);
                 }
-                
-                // บันทึกข้อมูลปัจจุบันไปยังห้อง
-                const dataToSave = {
-                    ...appData,
-                    lastSyncTime: now,
-                    updatedBy: userId,
-                    syncVersion: (roomData?.syncVersion || 0) + 1
-                };
-                
-                localStorage.setItem(roomKey, JSON.stringify(dataToSave));
-                lastSyncTime = now;
-                
-                // แสดงสถานะการซิงค์เฉพาะเมื่อมีการเปลี่ยนแปลง
-                if (syncQueue.length > 0) {
-                    showSyncStatus('📤 ส่งข้อมูลไปยังห้องเรียนแล้ว');
-                    setTimeout(hideSyncStatus, 1500);
-                    syncQueue = [];
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
+            }
+
+            setTimeout(hideSyncStatus, 3000);
+        }
+
+        // API calls
+        async function callSheetsAPI(action, data) {
+            if (!SHEETS_URL) {
+                throw new Error('ยังไม่ได้ตั้งค่า Google Sheets URL');
+            }
+
+            const payload = {
+                action: action,
+                ...data
+            };
+
+            const response = await fetch(SHEETS_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        // Data loading
+        async function loadAllData() {
+            if (!isConnected) return;
+
+            try {
+                showSyncStatus('📥 กำลังโหลดข้อมูลจาก Google Sheets...');
+
+                // Load classes
+                const classesResponse = await callSheetsAPI('getClasses', {});
+                if (classesResponse.success) {
+                    appData.classes = classesResponse.data;
                 }
+
+                // Load subjects
+                const subjectsResponse = await callSheetsAPI('getSubjects', {});
+                if (subjectsResponse.success) {
+                    appData.subjects = subjectsResponse.data;
+                }
+
+                refreshAllSelects();
+                showSyncStatus('✅ โหลดข้อมูลสำเร็จ!');
                 
             } catch (error) {
-                console.error('Sync error:', error);
-                showSyncStatus('❌ เกิดข้อผิดพลาดในการซิงค์', true);
-                setTimeout(hideSyncStatus, 3000);
+                console.error('Error loading data:', error);
+                showSyncStatus('❌ เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message, true);
             }
-        }
-        
-        // เพิ่มข้อมูลเข้าคิวซิงค์
-        function queueSync(action) {
-            syncQueue.push({
-                action: action,
-                timestamp: Date.now()
-            });
-            
-            // ซิงค์ทันทีถ้ามีการเปลี่ยนแปลง
-            if (ROOM_CODE) {
-                setTimeout(syncWithRoom, 100);
-            }
-        }
 
-        function simulateOnlineUsers() {
-            // จำลองจำนวนผู้ใช้ออนไลน์
-            setInterval(() => {
-                if (ROOM_CODE) {
-                    // สุ่มจำนวนผู้ใช้ 1-5 คน
-                    onlineUsers = Math.floor(Math.random() * 5) + 1;
-                    updateUserCount();
-                }
-            }, 10000);
-        }
-
-        function updateUserCount() {
-            document.getElementById('user-count').textContent = onlineUsers;
-        }
-
-        function testRealTime() {
-            if (!ROOM_CODE) {
-                alert('กรุณาเข้าร่วมห้องเรียนก่อนทดสอบ');
-                return;
-            }
-            
-            showSyncStatus('🧪 กำลังทดสอบระบบเรียลไทม์...');
-            
-            // เพิ่มข้อมูลทดสอบ
-            const timestamp = new Date().toLocaleTimeString('th-TH');
-            const testClass = `ทดสอบ-${timestamp}`;
-            const testSubject = `วิชาทดสอบ-${timestamp}`;
-            
-            appData.classes.push(testClass);
-            appData.subjects.push(testSubject);
-            refreshAllSelects();
-            saveData('test_add');
-            
-            showSyncStatus(`✅ เพิ่มข้อมูลทดสอบแล้ว: ${testClass}`);
-            
-            // แสดงคำแนะนำ
-            setTimeout(() => {
-                showSyncStatus('📱 ตรวจสอบในเครื่องอื่นหรือแท็บอื่น - ข้อมูลจะปรากฏภายใน 2 วินาที');
-            }, 2000);
-            
-            // ลบข้อมูลทดสอบหลัง 8 วินาที
-            setTimeout(() => {
-                appData.classes = appData.classes.filter(c => c !== testClass);
-                appData.subjects = appData.subjects.filter(s => s !== testSubject);
-                refreshAllSelects();
-                saveData('test_remove');
-                
-                showSyncStatus('🗑️ ลบข้อมูลทดสอบแล้ว - การทดสอบเสร็จสิ้น');
-                setTimeout(hideSyncStatus, 3000);
-            }, 8000);
-        }
-
-        // Data management
-        function loadLocalData() {
-            const localData = localStorage.getItem('attendance_data');
-            if (localData) {
-                try {
-                    const parsedData = JSON.parse(localData);
-                    appData = { ...appData, ...parsedData };
-                } catch (error) {
-                    console.error('Error parsing local data:', error);
-                }
-            }
-        }
-
-        function saveData(action = 'update') {
-            // บันทึกข้อมูลในเครื่อง
-            localStorage.setItem('attendance_data', JSON.stringify(appData));
-            
-            // เพิ่มเข้าคิวซิงค์
-            queueSync(action);
-            
-            // แสดงสถานะการบันทึก
-            showSyncStatus('💾 บันทึกข้อมูลแล้ว');
-            setTimeout(hideSyncStatus, 1000);
-        }
-
-        function showSyncStatus(message, isError = false) {
-            const status = document.getElementById('sync-status');
-            const messageEl = document.getElementById('sync-message');
-            messageEl.textContent = message;
-            status.className = `bg-${isError ? 'red' : 'gray'}-800 text-white px-4 py-2 rounded-lg shadow-lg`;
-            status.classList.remove('hidden');
-        }
-
-        function hideSyncStatus() {
-            document.getElementById('sync-status').classList.add('hidden');
+            setTimeout(hideSyncStatus, 2000);
         }
 
         // Tab management
@@ -584,87 +771,115 @@
         }
 
         // Class management
-        function addClass() {
+        async function addClass() {
             const className = document.getElementById('new-class').value.trim();
-            if (className && !appData.classes.includes(className)) {
-                appData.classes.push(className);
-                document.getElementById('new-class').value = '';
-                refreshAllSelects();
-                saveData('add_class');
-                showSyncStatus(`➕ เพิ่มชั้นเรียน "${className}" แล้ว`);
-                setTimeout(hideSyncStatus, 2000);
+            if (!className) {
+                alert('กรุณากรอกชื่อชั้นเรียน');
+                return;
             }
-        }
 
-        function removeClass(className) {
-            if (confirm(`ต้องการลบชั้นเรียน "${className}" หรือไม่?`)) {
-                appData.classes = appData.classes.filter(c => c !== className);
-                appData.students = appData.students.filter(s => s.class !== className);
-                refreshAllSelects();
-                saveData();
-                showSyncStatus(`ลบชั้นเรียน "${className}" แล้ว`);
-                setTimeout(hideSyncStatus, 2000);
+            if (!isConnected) {
+                alert('ยังไม่ได้เชื่อมต่อ Google Sheets');
+                return;
             }
+
+            try {
+                showSyncStatus('➕ กำลังเพิ่มชั้นเรียน...');
+                
+                const response = await callSheetsAPI('addClass', { className: className });
+                
+                if (response.success) {
+                    appData.classes.push(className);
+                    document.getElementById('new-class').value = '';
+                    refreshAllSelects();
+                    showSyncStatus(`✅ เพิ่มชั้นเรียน "${className}" สำเร็จ!`);
+                } else {
+                    throw new Error(response.message);
+                }
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
+            }
+
+            setTimeout(hideSyncStatus, 2000);
         }
 
         // Subject management
-        function addSubject() {
+        async function addSubject() {
             const subjectName = document.getElementById('new-subject').value.trim();
-            if (subjectName && !appData.subjects.includes(subjectName)) {
-                appData.subjects.push(subjectName);
-                document.getElementById('new-subject').value = '';
-                refreshAllSelects();
-                saveData('add_subject');
-                showSyncStatus(`📚 เพิ่มวิชา "${subjectName}" แล้ว`);
-                setTimeout(hideSyncStatus, 2000);
+            if (!subjectName) {
+                alert('กรุณากรอกชื่อวิชา');
+                return;
             }
-        }
 
-        function removeSubject(subjectName) {
-            if (confirm(`ต้องการลบวิชา "${subjectName}" หรือไม่?`)) {
-                appData.subjects = appData.subjects.filter(s => s !== subjectName);
-                refreshAllSelects();
-                saveData();
-                showSyncStatus(`ลบวิชา "${subjectName}" แล้ว`);
-                setTimeout(hideSyncStatus, 2000);
+            if (!isConnected) {
+                alert('ยังไม่ได้เชื่อมต่อ Google Sheets');
+                return;
             }
+
+            try {
+                showSyncStatus('📚 กำลังเพิ่มวิชา...');
+                
+                const response = await callSheetsAPI('addSubject', { subjectName: subjectName });
+                
+                if (response.success) {
+                    appData.subjects.push(subjectName);
+                    document.getElementById('new-subject').value = '';
+                    refreshAllSelects();
+                    showSyncStatus(`✅ เพิ่มวิชา "${subjectName}" สำเร็จ!`);
+                } else {
+                    throw new Error(response.message);
+                }
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
+            }
+
+            setTimeout(hideSyncStatus, 2000);
         }
 
         // Student management
-        function addStudent() {
+        async function addStudent() {
             const name = document.getElementById('student-name').value.trim();
             const id = document.getElementById('student-id').value.trim();
             const className = document.getElementById('student-class').value;
             
-            if (name && id && className) {
-                if (!appData.students.find(s => s.id === id)) {
-                    appData.students.push({ name, id, class: className });
+            if (!name || !id || !className) {
+                alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+                return;
+            }
+
+            if (!isConnected) {
+                alert('ยังไม่ได้เชื่อมต่อ Google Sheets');
+                return;
+            }
+
+            try {
+                showSyncStatus('👨‍🎓 กำลังเพิ่มนักเรียน...');
+                
+                const response = await callSheetsAPI('addStudent', {
+                    id: id,
+                    name: name,
+                    class: className
+                });
+                
+                if (response.success) {
+                    appData.students.push({ id, name, class: className });
                     document.getElementById('student-name').value = '';
                     document.getElementById('student-id').value = '';
                     document.getElementById('student-class').value = '';
                     refreshManagementLists();
-                    saveData('add_student');
-                    showSyncStatus(`👨‍🎓 เพิ่มนักเรียน "${name}" แล้ว`);
-                    setTimeout(hideSyncStatus, 2000);
+                    showSyncStatus(`✅ เพิ่มนักเรียน "${name}" สำเร็จ!`);
                 } else {
-                    alert('รหัสนักเรียนนี้มีอยู่แล้ว');
+                    throw new Error(response.message);
                 }
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
             }
-        }
 
-        function removeStudent(studentId) {
-            const student = appData.students.find(s => s.id === studentId);
-            if (student && confirm(`ต้องการลบนักเรียน "${student.name}" หรือไม่?`)) {
-                appData.students = appData.students.filter(s => s.id !== studentId);
-                refreshManagementLists();
-                saveData();
-                showSyncStatus(`ลบนักเรียน "${student.name}" แล้ว`);
-                setTimeout(hideSyncStatus, 2000);
-            }
+            setTimeout(hideSyncStatus, 2000);
         }
 
         // Attendance management
-        function loadAttendance() {
+        async function loadAttendance() {
             const className = document.getElementById('class-select').value;
             const subject = document.getElementById('subject-select').value;
             const date = document.getElementById('attendance-date').value;
@@ -673,62 +888,89 @@
                 alert('กรุณาเลือกชั้นเรียน วิชา และวันที่');
                 return;
             }
-            
-            const students = appData.students.filter(s => s.class === className);
-            const attendanceKey = `${className}-${subject}-${date}`;
-            const existingAttendance = appData.attendance[attendanceKey] || {};
-            
-            const studentListEl = document.getElementById('student-list');
-            studentListEl.innerHTML = '';
-            
-            students.forEach(student => {
-                const studentDiv = document.createElement('div');
-                studentDiv.className = 'flex items-center justify-between p-4 border border-gray-200 rounded-lg';
-                studentDiv.innerHTML = `
-                    <div>
-                        <span class="font-medium">${student.name}</span>
-                        <span class="text-gray-500 ml-2">(${student.id})</span>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button onclick="setAttendanceStatus('${student.id}', 'present')" 
-                                class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'present' ? 'status-present' : 'bg-gray-200 text-gray-700'}">
-                            มาเรียน (/)
-                        </button>
-                        <button onclick="setAttendanceStatus('${student.id}', 'absent')" 
-                                class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'absent' ? 'status-absent' : 'bg-gray-200 text-gray-700'}">
-                            ขาดเรียน (ข)
-                        </button>
-                        <button onclick="setAttendanceStatus('${student.id}', 'business')" 
-                                class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'business' ? 'status-business' : 'bg-gray-200 text-gray-700'}">
-                            ลากิจ (ล)
-                        </button>
-                        <button onclick="setAttendanceStatus('${student.id}', 'sick')" 
-                                class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'sick' ? 'status-sick' : 'bg-gray-200 text-gray-700'}">
-                            ลาป่วย (ป)
-                        </button>
-                        <button onclick="setAttendanceStatus('${student.id}', 'late')" 
-                                class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'late' ? 'status-late' : 'bg-gray-200 text-gray-700'}">
-                            สาย (ส)
-                        </button>
-                    </div>
-                `;
-                studentListEl.appendChild(studentDiv);
-            });
-            
-            document.getElementById('attendance-grid').classList.remove('hidden');
+
+            if (!isConnected) {
+                alert('ยังไม่ได้เชื่อมต่อ Google Sheets');
+                return;
+            }
+
+            try {
+                showSyncStatus('📥 กำลังโหลดข้อมูลนักเรียนและการเข้าเรียน...');
+
+                // Load students
+                const studentsResponse = await callSheetsAPI('getStudents', { className: className });
+                if (!studentsResponse.success) {
+                    throw new Error('ไม่สามารถโหลดข้อมูลนักเรียนได้');
+                }
+
+                const students = studentsResponse.data;
+                
+                // Load existing attendance
+                const attendanceResponse = await callSheetsAPI('getAttendance', {
+                    date: date,
+                    className: className,
+                    subject: subject
+                });
+
+                const existingAttendance = attendanceResponse.success ? attendanceResponse.data : {};
+                
+                // Display students
+                const studentListEl = document.getElementById('student-list');
+                studentListEl.innerHTML = '';
+                
+                students.forEach(student => {
+                    const studentDiv = document.createElement('div');
+                    studentDiv.className = 'flex items-center justify-between p-4 border border-gray-200 rounded-lg';
+                    studentDiv.innerHTML = `
+                        <div>
+                            <span class="font-medium">${student.name}</span>
+                            <span class="text-gray-500 ml-2">(${student.id})</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="setAttendanceStatus('${student.id}', 'present')" 
+                                    class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'present' ? 'status-present' : 'bg-gray-200 text-gray-700'}">
+                                มาเรียน (/)
+                            </button>
+                            <button onclick="setAttendanceStatus('${student.id}', 'absent')" 
+                                    class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'absent' ? 'status-absent' : 'bg-gray-200 text-gray-700'}">
+                                ขาดเรียน (ข)
+                            </button>
+                            <button onclick="setAttendanceStatus('${student.id}', 'business')" 
+                                    class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'business' ? 'status-business' : 'bg-gray-200 text-gray-700'}">
+                                ลากิจ (ล)
+                            </button>
+                            <button onclick="setAttendanceStatus('${student.id}', 'sick')" 
+                                    class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'sick' ? 'status-sick' : 'bg-gray-200 text-gray-700'}">
+                                ลาป่วย (ป)
+                            </button>
+                            <button onclick="setAttendanceStatus('${student.id}', 'late')" 
+                                    class="status-btn px-3 py-2 rounded-lg text-sm font-medium ${existingAttendance[student.id] === 'late' ? 'status-late' : 'bg-gray-200 text-gray-700'}">
+                                สาย (ส)
+                            </button>
+                        </div>
+                    `;
+                    studentListEl.appendChild(studentDiv);
+                });
+                
+                // Store current attendance data
+                appData.currentAttendance = existingAttendance;
+                
+                document.getElementById('attendance-grid').classList.remove('hidden');
+                showSyncStatus('✅ โหลดข้อมูลสำเร็จ!');
+                
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
+            }
+
+            setTimeout(hideSyncStatus, 2000);
         }
 
         function setAttendanceStatus(studentId, status) {
-            const className = document.getElementById('class-select').value;
-            const subject = document.getElementById('subject-select').value;
-            const date = document.getElementById('attendance-date').value;
-            const attendanceKey = `${className}-${subject}-${date}`;
-            
-            if (!appData.attendance[attendanceKey]) {
-                appData.attendance[attendanceKey] = {};
+            if (!appData.currentAttendance) {
+                appData.currentAttendance = {};
             }
             
-            appData.attendance[attendanceKey][studentId] = status;
+            appData.currentAttendance[studentId] = status;
             
             // Update button styles
             const studentDiv = event.target.closest('.flex.items-center');
@@ -738,129 +980,54 @@
             });
             
             event.target.className = `status-btn px-3 py-2 rounded-lg text-sm font-medium status-${status}`;
-            
-            // Auto save with sync
-            saveData('attendance_update');
         }
 
-        function saveAttendance() {
-            saveData('attendance_save');
-            showSyncStatus('✅ บันทึกข้อมูลการเข้าเรียนเรียบร้อยแล้ว');
-            setTimeout(hideSyncStatus, 2000);
-        }
-
-        // History search
-        function searchHistory() {
-            const className = document.getElementById('history-class').value;
-            const subject = document.getElementById('history-subject').value;
-            const startDate = document.getElementById('history-start-date').value;
-            const endDate = document.getElementById('history-end-date').value;
+        async function saveAttendance() {
+            const className = document.getElementById('class-select').value;
+            const subject = document.getElementById('subject-select').value;
+            const date = document.getElementById('attendance-date').value;
             
-            if (!className || !subject || !startDate || !endDate) {
-                alert('กรุณาเลือกข้อมูลให้ครบถ้วน');
+            if (!className || !subject || !date) {
+                alert('กรุณาเลือกชั้นเรียน วิชา และวันที่');
                 return;
             }
-            
-            const students = appData.students.filter(s => s.class === className);
-            
-            // Generate date range
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const dates = [];
-            
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                dates.push(new Date(d).toISOString().split('T')[0]);
+
+            if (!isConnected) {
+                alert('ยังไม่ได้เชื่อมต่อ Google Sheets');
+                return;
             }
-            
-            // Build results table
-            let tableHTML = `
-                <table class="min-w-full border-collapse border border-gray-300">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="border border-gray-300 px-4 py-2 text-left">ชื่อนักเรียน</th>
-                            <th class="border border-gray-300 px-4 py-2 text-left">รหัส</th>
-            `;
-            
-            dates.forEach(date => {
-                const dateObj = new Date(date);
-                const shortDate = `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
-                tableHTML += `<th class="border border-gray-300 px-2 py-2 text-center text-xs">${shortDate}</th>`;
-            });
-            
-            tableHTML += `
-                            <th class="border border-gray-300 px-4 py-2 text-center">สรุป</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            students.forEach(student => {
-                let presentCount = 0, absentCount = 0, businessCount = 0, sickCount = 0, lateCount = 0;
+
+            if (!appData.currentAttendance || Object.keys(appData.currentAttendance).length === 0) {
+                alert('ไม่มีข้อมูลการเข้าเรียนที่จะบันทึก');
+                return;
+            }
+
+            try {
+                showSyncStatus('💾 กำลังบันทึกข้อมูลการเข้าเรียน...');
                 
-                tableHTML += `
-                    <tr>
-                        <td class="border border-gray-300 px-4 py-2">${student.name}</td>
-                        <td class="border border-gray-300 px-4 py-2">${student.id}</td>
-                `;
-                
-                dates.forEach(date => {
-                    const attendanceKey = `${className}-${subject}-${date}`;
-                    const status = appData.attendance[attendanceKey]?.[student.id] || '';
-                    
-                    let displayStatus = '';
-                    let cellClass = 'border border-gray-300 px-2 py-2 text-center text-sm';
-                    
-                    switch (status) {
-                        case 'present':
-                            displayStatus = '/';
-                            cellClass += ' bg-green-100 text-green-800';
-                            presentCount++;
-                            break;
-                        case 'absent':
-                            displayStatus = 'ข';
-                            cellClass += ' bg-red-100 text-red-800';
-                            absentCount++;
-                            break;
-                        case 'business':
-                            displayStatus = 'ล';
-                            cellClass += ' bg-yellow-100 text-yellow-800';
-                            businessCount++;
-                            break;
-                        case 'sick':
-                            displayStatus = 'ป';
-                            cellClass += ' bg-purple-100 text-purple-800';
-                            sickCount++;
-                            break;
-                        case 'late':
-                            displayStatus = 'ส';
-                            cellClass += ' bg-orange-100 text-orange-800';
-                            lateCount++;
-                            break;
-                        default:
-                            cellClass += ' bg-gray-50';
-                    }
-                    
-                    tableHTML += `<td class="${cellClass}">${displayStatus}</td>`;
+                const response = await callSheetsAPI('saveAttendance', {
+                    date: date,
+                    className: className,
+                    subject: subject,
+                    attendance: appData.currentAttendance
                 });
                 
-                tableHTML += `
-                    <td class="border border-gray-300 px-4 py-2 text-sm">
-                        <div class="text-xs space-y-1">
-                            <div>มา: ${presentCount}</div>
-                            <div>ขาด: ${absentCount}</div>
-                            <div>ลากิจ: ${businessCount}</div>
-                            <div>ลาป่วย: ${sickCount}</div>
-                            <div>สาย: ${lateCount}</div>
-                        </div>
-                    </td>
-                </tr>
-                `;
-            });
-            
-            tableHTML += '</tbody></table>';
-            
-            document.getElementById('history-table').innerHTML = tableHTML;
-            document.getElementById('history-results').classList.remove('hidden');
+                if (response.success) {
+                    showSyncStatus('✅ บันทึกข้อมูลการเข้าเรียนสำเร็จ!');
+                } else {
+                    throw new Error(response.message);
+                }
+            } catch (error) {
+                showSyncStatus('❌ เกิดข้อผิดพลาด: ' + error.message, true);
+            }
+
+            setTimeout(hideSyncStatus, 3000);
+        }
+
+        // History search (simplified for demo)
+        function searchHistory() {
+            showSyncStatus('🔍 ฟีเจอร์ค้นหาประวัติจะพัฒนาในเวอร์ชันถัดไป');
+            setTimeout(hideSyncStatus, 3000);
         }
 
         // UI refresh functions
@@ -868,7 +1035,6 @@
             refreshClassSelects();
             refreshSubjectSelects();
             refreshManagementLists();
-            refreshHistorySelects();
         }
 
         function refreshClassSelects() {
@@ -912,7 +1078,7 @@
                 div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
                 div.innerHTML = `
                     <span>${className}</span>
-                    <button onclick="removeClass('${className}')" class="text-red-600 hover:text-red-800 text-sm">ลบ</button>
+                    <span class="text-sm text-gray-500">จัดการใน Google Sheets</span>
                 `;
                 classList.appendChild(div);
             });
@@ -925,7 +1091,7 @@
                 div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
                 div.innerHTML = `
                     <span>${subject}</span>
-                    <button onclick="removeSubject('${subject}')" class="text-red-600 hover:text-red-800 text-sm">ลบ</button>
+                    <span class="text-sm text-gray-500">จัดการใน Google Sheets</span>
                 `;
                 subjectList.appendChild(div);
             });
@@ -942,7 +1108,7 @@
                         <span class="text-gray-500 ml-2">(${student.id})</span>
                         <span class="text-blue-600 ml-2">${student.class}</span>
                     </div>
-                    <button onclick="removeStudent('${student.id}')" class="text-red-600 hover:text-red-800 text-sm">ลบ</button>
+                    <span class="text-sm text-gray-500">จัดการใน Google Sheets</span>
                 `;
                 studentList.appendChild(div);
             });
@@ -953,49 +1119,30 @@
             refreshSubjectSelects();
         }
 
-        // System reset
-        function resetSystem() {
-            if (confirm('ต้องการรีเซ็ตระบบและลบข้อมูลทั้งหมดหรือไม่?')) {
-                stopRealTimeSync();
-                
-                // Clear all localStorage
-                localStorage.removeItem('attendance_data');
-                localStorage.removeItem('attendance_room_code');
-                
-                // Clear room data
-                if (ROOM_CODE) {
-                    localStorage.removeItem(`room_${ROOM_CODE}`);
-                }
-                
-                // Reset data
-                appData = {
-                    classes: ['ม.1/1', 'ม.1/2', 'ม.2/1', 'ม.2/2'],
-                    subjects: ['คณิตศาสตร์', 'ภาษาไทย', 'ภาษาอังกฤษ', 'วิทยาศาสตร์'],
-                    students: [
-                        { name: 'นางสาวสมใจ ใจดี', id: '001', class: 'ม.1/1' },
-                        { name: 'นายสมชาย ดีใจ', id: '002', class: 'ม.1/1' },
-                        { name: 'นางสาวสมหญิง รักเรียน', id: '003', class: 'ม.1/2' },
-                        { name: 'นายสมศักดิ์ เรียนดี', id: '004', class: 'ม.2/1' },
-                        { name: 'นางสาวสมปอง ขยันเรียน', id: '005', class: 'ม.2/2' }
-                    ],
-                    attendance: {}
-                };
-                
-                ROOM_CODE = null;
-                
-                // Hide room display
-                document.getElementById('current-room').classList.add('hidden');
-                document.getElementById('online-users').classList.add('hidden');
-                
-                // Refresh UI
-                refreshAllSelects();
-                document.getElementById('attendance-grid').classList.add('hidden');
-                document.getElementById('history-results').classList.add('hidden');
-                
-                showSyncStatus('รีเซ็ตระบบเรียบร้อยแล้ว');
+        // Utility functions
+        function showSyncStatus(message, isError = false) {
+            const status = document.getElementById('sync-status');
+            const messageEl = document.getElementById('sync-message');
+            messageEl.textContent = message;
+            status.className = `bg-${isError ? 'red' : 'gray'}-800 text-white px-4 py-2 rounded-lg shadow-lg`;
+            status.classList.remove('hidden');
+        }
+
+        function hideSyncStatus() {
+            document.getElementById('sync-status').classList.add('hidden');
+        }
+
+        function showSetupDetails() {
+            showTab('setup');
+        }
+
+        function copyAppsScriptCode() {
+            const code = document.getElementById('apps-script-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                showSyncStatus('📋 คัดลอกโค้ด Apps Script แล้ว!');
                 setTimeout(hideSyncStatus, 2000);
-            }
+            });
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c96f0ee70e7991',t:'MTc1NDc2NTM3MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c98210b340798f',t:'MTc1NDc2NjE0OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
