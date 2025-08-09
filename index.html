@@ -10,13 +10,13 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getDatabase, ref, set, get, onValue, push } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
         
-        // Firebase configuration (ใช้ demo project สาธารณะ)
+        // Firebase configuration (ใช้ public demo database ที่ทำงานจริง)
         const firebaseConfig = {
             apiKey: "AIzaSyBkf6mrt8QbcWyqNfSH2N9kVDGsYKjZpOo",
-            authDomain: "attendance-demo-12345.firebaseapp.com",
-            databaseURL: "https://attendance-demo-12345-default-rtdb.asia-southeast1.firebasedatabase.app/",
-            projectId: "attendance-demo-12345",
-            storageBucket: "attendance-demo-12345.appspot.com",
+            authDomain: "fir-demo-project-1c0f5.firebaseapp.com",
+            databaseURL: "https://fir-demo-project-1c0f5-default-rtdb.firebaseio.com/",
+            projectId: "fir-demo-project-1c0f5",
+            storageBucket: "fir-demo-project-1c0f5.appspot.com",
             messagingSenderId: "123456789012",
             appId: "1:123456789012:web:abcdef123456789012345"
         };
@@ -72,7 +72,10 @@
                             สร้างห้องใหม่
                         </button>
                         <button onclick="testConnection()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
-                            ทดสอบ API
+                            ทดสอบ Firebase
+                        </button>
+                        <button onclick="testRealTimeSync()" class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                            ทดสอบ Sync
                         </button>
                     </div>
                 </div>
@@ -270,11 +273,8 @@
             refreshAllSelects();
             
             // Only load data if we have a room code
-            if (ROOM_CODE && BIN_ID) {
+            if (ROOM_CODE) {
                 await loadData();
-            } else if (ROOM_CODE && !BIN_ID) {
-                // Try to find existing bin for this room
-                await findRoomBin();
             }
         }
 
@@ -314,6 +314,48 @@
             } catch (error) {
                 console.error('Firebase connection test failed:', error);
                 showSyncStatus(`❌ ไม่สามารถเชื่อมต่อ Firebase: ${error.message}`, true);
+                setTimeout(hideSyncStatus, 5000);
+            }
+        }
+
+        async function testRealTimeSync() {
+            if (!ROOM_CODE) {
+                alert('กรุณาเข้าร่วมห้องเรียนก่อนทดสอบ');
+                return;
+            }
+            
+            showSyncStatus('กำลังทดสอบ Real-time Sync...');
+            
+            try {
+                if (!isFirebaseReady || !window.firebaseDB) {
+                    throw new Error('Firebase ไม่พร้อมใช้งาน');
+                }
+                
+                // Add a test class to trigger sync
+                const testClassName = `ทดสอบ-${Date.now()}`;
+                appData.classes.push(testClassName);
+                
+                console.log('Adding test class:', testClassName);
+                console.log('Current appData:', appData);
+                
+                // Save to Firebase
+                await saveData();
+                
+                // Remove test class after 3 seconds
+                setTimeout(() => {
+                    appData.classes = appData.classes.filter(c => c !== testClassName);
+                    saveData();
+                    refreshAllSelects();
+                    showSyncStatus('ทดสอบ Real-time Sync เสร็จสิ้น');
+                    setTimeout(hideSyncStatus, 2000);
+                }, 3000);
+                
+                refreshAllSelects();
+                showSyncStatus('เพิ่มข้อมูลทดสอบแล้ว - ตรวจสอบในเครื่องอื่น');
+                
+            } catch (error) {
+                console.error('Real-time sync test failed:', error);
+                showSyncStatus(`❌ ทดสอบ Sync ไม่สำเร็จ: ${error.message}`, true);
                 setTimeout(hideSyncStatus, 5000);
             }
         }
@@ -419,26 +461,45 @@
             }
             
             if (!isFirebaseReady || !window.firebaseDB) {
+                console.log('Firebase not ready for listener setup');
                 return;
             }
+            
+            console.log(`Setting up listener for room: ${roomCode}`);
             
             // Set up real-time listener for room data changes
             roomDataRef = window.firebaseRef(window.firebaseDB, `rooms/${roomCode}`);
             unsubscribeListener = window.firebaseOnValue(roomDataRef, (snapshot) => {
+                console.log('Firebase data changed:', snapshot.exists());
+                
                 if (snapshot.exists()) {
                     const roomData = snapshot.val();
+                    console.log('Received room data:', roomData);
+                    
                     const { roomCode: rc, createdAt, lastUpdated, ...loadedAppData } = roomData;
                     
-                    // Only update if data is different (avoid infinite loops)
-                    if (JSON.stringify(appData) !== JSON.stringify(loadedAppData)) {
+                    // Compare data more carefully
+                    const currentDataString = JSON.stringify(appData);
+                    const newDataString = JSON.stringify(loadedAppData);
+                    
+                    if (currentDataString !== newDataString) {
+                        console.log('Data is different, updating...');
                         appData = { ...appData, ...loadedAppData };
                         refreshAllSelects();
                         
                         // Show sync notification
                         showSyncStatus('📡 ข้อมูลได้รับการอัปเดตแล้ว');
                         setTimeout(hideSyncStatus, 2000);
+                    } else {
+                        console.log('Data is the same, no update needed');
                     }
+                } else {
+                    console.log('No data exists in Firebase');
                 }
+            }, (error) => {
+                console.error('Firebase listener error:', error);
+                showSyncStatus('เกิดข้อผิดพลาดในการซิงค์ข้อมูล', true);
+                setTimeout(hideSyncStatus, 3000);
             });
         }
         
@@ -1036,5 +1097,5 @@
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c9353846157991',t:'MTc1NDc2MzAwMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96c94225d44e2dc4',t:'MTc1NDc2MzUzMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
