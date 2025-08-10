@@ -413,8 +413,23 @@
             activeBtn.classList.add('bg-indigo-600', 'text-white');
             activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
             
+            // Show loading state for tab switching
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                text: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                timer: 500,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
             // Refresh data when switching tabs
-            loadDataFromGoogleSheets();
+            setTimeout(() => {
+                loadDataFromGoogleSheets();
+            }, 100);
         }
 
         // Calendar generation
@@ -680,7 +695,7 @@
                             icon: 'success',
                             title: 'สำเร็จ!',
                             text: response.message || 'บันทึกข้อมูลเรียบร้อยแล้ว',
-                            timer: 1500,
+                            timer: 800,
                             showConfirmButton: false
                         });
                     }
@@ -1224,16 +1239,76 @@
                 return;
             }
             
-            const historyData = attendanceData[date]?.[room]?.[subject];
-            const roomData = rooms.find(r => r.name === room);
+            // Show loading state
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                text: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
             
-            if (!historyData || !roomData) {
-                Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการเข้าเรียนในวันที่เลือก', 'info');
-                document.getElementById('history-results').classList.add('hidden');
-                return;
-            }
+            // Load fresh data from Google Sheets
+            const script = document.createElement('script');
+            const callbackName = 'historyCallback_' + Date.now();
             
-            displayHistoryResults(roomData.students, historyData);
+            window[callbackName] = function(response) {
+                Swal.close();
+                
+                if (response.success) {
+                    // Update local attendance data
+                    if (response.attendance && response.attendance.length > 0) {
+                        const loadedAttendanceData = {};
+                        response.attendance.forEach(record => {
+                            const [recordDate, recordRoom, recordSubject, studentId, status] = record;
+                            if (!loadedAttendanceData[recordDate]) {
+                                loadedAttendanceData[recordDate] = {};
+                            }
+                            if (!loadedAttendanceData[recordDate][recordRoom]) {
+                                loadedAttendanceData[recordDate][recordRoom] = {};
+                            }
+                            if (!loadedAttendanceData[recordDate][recordRoom][recordSubject]) {
+                                loadedAttendanceData[recordDate][recordRoom][recordSubject] = {};
+                            }
+                            loadedAttendanceData[recordDate][recordRoom][recordSubject][studentId] = status;
+                        });
+                        attendanceData = loadedAttendanceData;
+                        localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                    }
+                    
+                    // Now check for the requested data
+                    const historyData = attendanceData[date]?.[room]?.[subject];
+                    const roomData = rooms.find(r => r.name === room);
+                    
+                    if (!historyData || !roomData) {
+                        Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการเข้าเรียนในวันที่เลือก', 'info');
+                        document.getElementById('history-results').classList.add('hidden');
+                        return;
+                    }
+                    
+                    displayHistoryResults(roomData.students, historyData);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เกิดข้อผิดพลาด',
+                        text: 'ไม่สามารถโหลดข้อมูลได้: ' + (response.error || 'Unknown error')
+                    });
+                }
+                
+                document.head.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            const params = new URLSearchParams({
+                action: 'loadAllData',
+                callback: callbackName
+            });
+            
+            script.src = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+            document.head.appendChild(script);
         }
 
         function deleteSelectedHistory() {
@@ -1412,5 +1487,5 @@
     </script>
 
 
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf8331f79d2dc0',t:'MTc1NDgyOTExMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cfa57e825b7992',t:'MTc1NDgzMDUxNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
