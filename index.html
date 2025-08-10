@@ -782,12 +782,19 @@ function initializeData(sheet) {
             document.getElementById('history-start-date').value = today;
             document.getElementById('history-end-date').value = today;
             
+            // Your Google Sheets information
+            const SHEETS_ID = '1PwWPZaNnPXnCOxcthaB8BhEJHHiuAirSt_dejjbMAlU';
+            const SHEETS_LINK = `https://docs.google.com/spreadsheets/d/${SHEETS_ID}/edit`;
+            
+            // Show your sheets link
+            showSheetsInfo(SHEETS_LINK);
+            
             // Load saved configuration
-            if (SHEETS_URL) {
-                document.getElementById('sheets-url').value = SHEETS_URL;
+            if (localStorage.getItem('sheets_url')) {
+                const savedURL = localStorage.getItem('sheets_url');
+                document.getElementById('sheets-url').value = savedURL;
+                SHEETS_URL = savedURL;
                 testConnection();
-            } else {
-                updateConnectionStatus('offline', 'ยังไม่ได้ตั้งค่า Google Sheets');
             }
         });
 
@@ -829,12 +836,36 @@ function initializeData(sheet) {
             showSyncStatus('🔄 กำลังทดสอบการเชื่อมต่อ Google Sheets...');
 
             try {
+                console.log('Testing URL:', url);
+                
                 const response = await fetch(url, {
                     method: 'GET',
-                    mode: 'cors'
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
                 });
 
-                const result = await response.json();
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    throw new Error(`ไม่สามารถแปลงข้อมูลได้: ${responseText.substring(0, 100)}...`);
+                }
+                
+                console.log('Parsed result:', result);
                 
                 if (result.success) {
                     updateConnectionStatus('online', 'เชื่อมต่อ Google Sheets สำเร็จ!');
@@ -848,11 +879,37 @@ function initializeData(sheet) {
                 }
             } catch (error) {
                 console.error('Connection test failed:', error);
-                updateConnectionStatus('offline', 'การเชื่อมต่อล้มเหลว: ' + error.message);
-                showSyncStatus('❌ การเชื่อมต่อล้มเหลว: ' + error.message, true);
+                
+                let errorMessage = error.message;
+                let detailedError = '';
+                
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'ไม่สามารถเชื่อมต่อได้';
+                    detailedError = 'อาจเป็นปัญหา CORS, URL ไม่ถูกต้อง, หรือยังไม่ได้ Deploy';
+                } else if (error.message.includes('CORS')) {
+                    errorMessage = 'ปัญหา CORS Policy';
+                    detailedError = 'ตรวจสอบการตั้งค่า "Anyone" access ใน Deploy';
+                } else if (error.message.includes('HTTP 404')) {
+                    errorMessage = 'ไม่พบ Web App';
+                    detailedError = 'URL อาจไม่ถูกต้อง หรือยังไม่ได้ Deploy';
+                } else if (error.message.includes('HTTP 403')) {
+                    errorMessage = 'ไม่ได้รับอนุญาต';
+                    detailedError = 'ตรวจสอบ Permissions และ Access settings';
+                } else if (error.message.includes('HTTP 500')) {
+                    errorMessage = 'เกิดข้อผิดพลาดใน Apps Script';
+                    detailedError = 'ตรวจสอบโค้ดใน Apps Script Editor';
+                }
+                
+                updateConnectionStatus('offline', `${errorMessage}: ${detailedError}`);
+                showSyncStatus(`❌ ${errorMessage}: ${detailedError}`, true);
+                
+                // Show detailed troubleshooting after a moment
+                setTimeout(() => {
+                    showDetailedError(error, url);
+                }, 2000);
             }
 
-            setTimeout(hideSyncStatus, 3000);
+            setTimeout(hideSyncStatus, 8000);
         }
 
         function saveConfiguration() {
@@ -1365,40 +1422,103 @@ function initializeData(sheet) {
             });
         }
 
-        function showTroubleshootingModal() {
+        function showDetailedError(error, url) {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            
+            let errorDetails = '';
+            let solutions = '';
+            
+            if (error.message.includes('Failed to fetch')) {
+                errorDetails = `
+                    <div class="p-4 bg-red-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-red-800 mb-2">🚫 ข้อผิดพลาด: Failed to fetch</h4>
+                        <p class="text-red-700 text-sm">ไม่สามารถเชื่อมต่อกับ Google Apps Script ได้</p>
+                        <p class="text-red-600 text-xs mt-2 font-mono break-all">URL: ${url}</p>
+                    </div>
+                `;
+                solutions = `
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <h4 class="font-bold text-blue-800 mb-2">💡 วิธีแก้ไข:</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-blue-700 text-sm">
+                            <li><strong>ตรวจสอบ URL:</strong> ต้องขึ้นต้นด้วย https://script.google.com/macros/s/</li>
+                            <li><strong>ตรวจสอบ Deploy:</strong> ใน Apps Script → Deploy → ดูว่า Status เป็น "Active"</li>
+                            <li><strong>ตั้งค่า Access:</strong> Who has access = "Anyone"</li>
+                            <li><strong>ทดสอบ URL:</strong> เปิดใน Browser ใหม่ ควรเห็น JSON response</li>
+                        </ol>
+                    </div>
+                `;
+            } else if (error.message.includes('HTTP 404')) {
+                errorDetails = `
+                    <div class="p-4 bg-red-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-red-800 mb-2">🔍 ข้อผิดพลาด: 404 Not Found</h4>
+                        <p class="text-red-700 text-sm">ไม่พบ Web App ที่ URL นี้</p>
+                    </div>
+                `;
+                solutions = `
+                    <div class="p-4 bg-orange-50 rounded-lg">
+                        <h4 class="font-bold text-orange-800 mb-2">🔧 วิธีแก้ไข:</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-orange-700 text-sm">
+                            <li><strong>Deploy ใหม่:</strong> ใน Apps Script → Deploy → New deployment</li>
+                            <li><strong>คัดลอก URL ใหม่:</strong> ใช้ Web app URL ที่ได้จาก Deploy ล่าสุด</li>
+                            <li><strong>ตรวจสอบโค้ด:</strong> ให้แน่ใจว่าวางโค้ด Apps Script ครบถ้วน</li>
+                        </ol>
+                    </div>
+                `;
+            } else if (error.message.includes('HTTP 403')) {
+                errorDetails = `
+                    <div class="p-4 bg-red-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-red-800 mb-2">🚫 ข้อผิดพลาด: 403 Forbidden</h4>
+                        <p class="text-red-700 text-sm">ไม่ได้รับอนุญาตให้เข้าถึง</p>
+                    </div>
+                `;
+                solutions = `
+                    <div class="p-4 bg-purple-50 rounded-lg">
+                        <h4 class="font-bold text-purple-800 mb-2">🔐 วิธีแก้ไข:</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-purple-700 text-sm">
+                            <li><strong>ตั้งค่า Access:</strong> Who has access = "Anyone"</li>
+                            <li><strong>อนุญาต Permissions:</strong> คลิก "Review permissions" → Allow</li>
+                            <li><strong>Deploy ใหม่:</strong> หลังเปลี่ยน Settings แล้ว Deploy ใหม่</li>
+                        </ol>
+                    </div>
+                `;
+            } else {
+                errorDetails = `
+                    <div class="p-4 bg-red-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-red-800 mb-2">⚠️ ข้อผิดพลาด:</h4>
+                        <p class="text-red-700 text-sm">${error.message}</p>
+                    </div>
+                `;
+                solutions = `
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h4 class="font-bold text-gray-800 mb-2">🔍 ขั้นตอนการตรวจสอบ:</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-gray-700 text-sm">
+                            <li>เปิด Developer Console (F12) เพื่อดูข้อผิดพลาดเพิ่มเติม</li>
+                            <li>ทดสอบ URL ใน Browser ใหม่</li>
+                            <li>ตรวจสอบโค้ด Apps Script</li>
+                            <li>Deploy ใหม่อีกครั้ง</li>
+                        </ol>
+                    </div>
+                `;
+            }
+            
             modal.innerHTML = `
-                <div class="bg-white rounded-xl max-w-2xl w-full max-h-96 overflow-y-auto p-6">
-                    <h3 class="text-xl font-bold text-red-600 mb-4">🔧 แก้ปัญหา "Failed to fetch"</h3>
+                <div class="bg-white rounded-xl max-w-3xl w-full max-h-96 overflow-y-auto p-6">
+                    <h3 class="text-xl font-bold text-red-600 mb-4">🔧 รายละเอียดข้อผิดพลาด</h3>
                     
-                    <div class="space-y-4 text-sm">
-                        <div class="p-4 bg-red-50 rounded-lg">
-                            <h4 class="font-bold text-red-800 mb-2">สาเหตุที่พบบ่อย:</h4>
-                            <ul class="list-disc list-inside space-y-1 text-red-700">
-                                <li>Web App URL ไม่ถูกต้อง</li>
-                                <li>ยังไม่ได้ Deploy หรือ Deploy ไม่สำเร็จ</li>
-                                <li>ตั้งค่า "Who has access" ไม่ใช่ "Anyone"</li>
-                                <li>ยังไม่ได้อนุญาต Permissions</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="p-4 bg-blue-50 rounded-lg">
-                            <h4 class="font-bold text-blue-800 mb-2">วิธีแก้ไข:</h4>
-                            <ol class="list-decimal list-inside space-y-2 text-blue-700">
-                                <li><strong>ตรวจสอบ URL:</strong> ต้องขึ้นต้นด้วย https://script.google.com/macros/s/</li>
-                                <li><strong>Deploy ใหม่:</strong> ใน Apps Script → Deploy → New deployment</li>
-                                <li><strong>ตั้งค่า Access:</strong> Who has access = "Anyone"</li>
-                                <li><strong>อนุญาต Permissions:</strong> คลิก "Review permissions" → Allow</li>
-                                <li><strong>รอสักครู่:</strong> Google อาจใช้เวลา 1-2 นาที</li>
-                            </ol>
-                        </div>
-                        
-                        <div class="p-4 bg-green-50 rounded-lg">
-                            <h4 class="font-bold text-green-800 mb-2">ทดสอบ URL:</h4>
-                            <p class="text-green-700 mb-2">เปิด URL ในแท็บใหม่ ควรเห็นข้อความ:</p>
-                            <code class="bg-gray-100 p-2 rounded text-xs block">{"success":true,"message":"เชื่อมต่อ Google Sheets สำเร็จ!"}</code>
-                        </div>
+                    ${errorDetails}
+                    ${solutions}
+                    
+                    <div class="p-4 bg-green-50 rounded-lg mt-4">
+                        <h4 class="font-bold text-green-800 mb-2">✅ ทดสอบ URL ด้วยตนเอง:</h4>
+                        <p class="text-green-700 text-sm mb-2">เปิด URL นี้ในแท็บใหม่:</p>
+                        <div class="bg-white p-2 rounded border text-xs font-mono break-all mb-2">${url}</div>
+                        <p class="text-green-700 text-sm">ควรเห็นข้อความ JSON แบบนี้:</p>
+                        <code class="bg-gray-100 p-2 rounded text-xs block">{"success":true,"message":"เชื่อมต่อ Google Sheets สำเร็จ!"}</code>
+                        <button onclick="window.open('${url}', '_blank')" 
+                                class="mt-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                            เปิดทดสอบ URL
+                        </button>
                     </div>
                     
                     <div class="flex gap-2 mt-6">
@@ -1409,6 +1529,10 @@ function initializeData(sheet) {
                         <button onclick="showTab('setup'); this.closest('.fixed').remove()" 
                                 class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
                             ดูคู่มือตั้งค่า
+                        </button>
+                        <button onclick="testConnection(); this.closest('.fixed').remove()" 
+                                class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg">
+                            ทดสอบอีกครั้ง
                         </button>
                     </div>
                 </div>
@@ -1423,6 +1547,79 @@ function initializeData(sheet) {
                 }
             });
         }
+
+        function showTroubleshootingModal() {
+            showDetailedError(new Error('Failed to fetch'), SHEETS_URL || 'ไม่ได้ระบุ URL');
+        }
+
+        function showSheetsInfo(sheetsLink) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-2xl w-full p-6">
+                    <h3 class="text-xl font-bold text-blue-600 mb-4">📊 Google Sheets ของคุณพร้อมแล้ว!</h3>
+                    
+                    <div class="p-4 bg-blue-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-blue-800 mb-2">🔗 ลิงก์ Google Sheets:</h4>
+                        <div class="bg-white p-3 rounded border text-sm font-mono break-all mb-3">${sheetsLink}</div>
+                        <button onclick="window.open('${sheetsLink}', '_blank')" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                            เปิด Google Sheets
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 bg-green-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-green-800 mb-2">✅ ขั้นตอนต่อไป:</h4>
+                        <ol class="list-decimal list-inside space-y-2 text-green-700 text-sm">
+                            <li><strong>ตรวจสอบ 4 แผ่นงาน:</strong> Classes, Subjects, Students, Attendance</li>
+                            <li><strong>ใส่ข้อมูลตัวอย่าง:</strong> ตามคู่มือในแท็บ "คู่มือตั้งค่า"</li>
+                            <li><strong>ตั้งค่า Apps Script:</strong> Extensions → Apps Script</li>
+                            <li><strong>Deploy Web App:</strong> แล้วนำ URL มาใส่ในระบบ</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="p-4 bg-yellow-50 rounded-lg mb-4">
+                        <h4 class="font-bold text-yellow-800 mb-2">⚠️ สำคัญ:</h4>
+                        <p class="text-yellow-700 text-sm">
+                            ตอนนี้ยังไม่สามารถใช้งานได้ เพราะยังไม่ได้ตั้งค่า Apps Script 
+                            กรุณาทำตามขั้นตอนในแท็บ "คู่มือตั้งค่า" ก่อน
+                        </p>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-6">
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg">
+                            ปิด
+                        </button>
+                        <button onclick="showTab('setup'); this.closest('.fixed').remove()" 
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                            ดูคู่มือตั้งค่า
+                        </button>
+                        <button onclick="window.open('${sheetsLink}', '_blank')" 
+                                class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg">
+                            เปิด Google Sheets
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Close on background click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+            
+            // Auto close after 10 seconds
+            setTimeout(() => {
+                if (document.body.contains(modal)) {
+                    modal.remove();
+                }
+            }, 10000);
+        }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cc03f2d056fe8b',t:'MTc1NDc5MjQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cc17f423bb3df5',t:'MTc1NDc5MzI2MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
