@@ -1,26 +1,1242 @@
-<script>
-async function sendData() {
-  const payload = {
-    token: "mySecretToken123", // ต้องตรงกับ API_TOKEN ใน GAS
-    name: document.getElementById("name").value,
-    email: document.getElementById("email").value,
-    message: document.getElementById("message").value
-  };
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมบันทึกเวลาเรียน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .calendar-day {
+            transition: all 0.2s ease;
+        }
+        .calendar-day:hover {
+            background-color: #e5e7eb;
+        }
+        .calendar-day.selected {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .calendar-day.disabled {
+            color: #d1d5db;
+            cursor: not-allowed;
+        }
+        .calendar-day.has-data {
+            position: relative;
+        }
+        .calendar-day.has-data::after {
+            content: '●';
+            position: absolute;
+            top: 2px;
+            right: 4px;
+            color: #ef4444;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .status-btn {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .status-btn.active {
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-indigo-800 mb-2">โปรแกรมบันทึกเวลาเรียน</h1>
+            <p class="text-gray-600">ระบบจัดการการเข้าเรียนของนักเรียน</p>
+        </div>
 
-  const res = await fetch("https://script.google.com/macros/s/AKfycbyw9mGYq3U8USP0hYFba6mRgSD4_h1da4clEApWHjhdP9ibgEV-1tQCT_CQLBZN1YI5/exec", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+        <!-- Navigation -->
+        <div class="flex justify-center mb-8">
+            <div class="bg-white rounded-lg shadow-lg p-2 flex space-x-2">
+                <button onclick="showTab('attendance')" id="tab-attendance" class="px-6 py-3 rounded-lg font-medium transition-all duration-200 bg-indigo-600 text-white">
+                    📝 บันทึกการเข้าเรียน
+                </button>
+                <button onclick="showTab('manage')" id="tab-manage" class="px-6 py-3 rounded-lg font-medium transition-all duration-200 text-gray-600 hover:bg-gray-100">
+                    ⚙️ จัดการข้อมูล
+                </button>
+                <button onclick="showTab('history')" id="tab-history" class="px-6 py-3 rounded-lg font-medium transition-all duration-200 text-gray-600 hover:bg-gray-100">
+                    📊 ประวัติการเข้าเรียน
+                </button>
+            </div>
+        </div>
 
-  const result = await res.json();
-  console.log(result);
-  alert(result.message);
-}
-</script>
+        <!-- Tab Content -->
+        <div class="max-w-6xl mx-auto">
+            <!-- Attendance Tab -->
+            <div id="attendance-tab" class="tab-content">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">📝 บันทึกการเข้าเรียน</h2>
+                    
+                    <!-- Date Selection -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">เลือกวันที่</label>
+                        <div id="calendar" class="bg-gray-50 p-4 rounded-lg"></div>
+                    </div>
 
-<form onsubmit="event.preventDefault(); sendData();">
-  <input id="name" placeholder="Name">
-  <input id="email" placeholder="Email">
-  <input id="message" placeholder="Message">
-  <button type="submit">Submit</button>
-</form>
+                    <!-- Room and Subject Selection -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เลือกห้องเรียน</label>
+                            <select id="room-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- เลือกห้องเรียน --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เลือกรายวิชา</label>
+                            <select id="subject-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">-- เลือกรายวิชา --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Student List -->
+                    <div id="student-list" class="hidden">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">รายชื่อนักเรียน</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse border border-gray-300">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="border border-gray-300 px-4 py-2 text-left">เลขที่</th>
+                                        <th class="border border-gray-300 px-4 py-2 text-left">เลขประจำตัว</th>
+                                        <th class="border border-gray-300 px-4 py-2 text-left">ชื่อ-สกุล</th>
+                                        <th class="border border-gray-300 px-4 py-2 text-center">สถานะการเข้าเรียน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-6 text-center">
+                            <button onclick="saveAttendance()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200">
+                                💾 บันทึก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manage Tab -->
+            <div id="manage-tab" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Room Management -->
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">🏫 จัดการห้องเรียน</h2>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เพิ่มห้องเรียนใหม่</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-room-name" placeholder="ชื่อห้องเรียน" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <button onclick="addRoom()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-lg">เพิ่ม</button>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ห้องเรียนที่มีอยู่</label>
+                            <div id="room-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="clearAllRooms()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">ลบทั้งหมด</button>
+                        </div>
+                    </div>
+
+                    <!-- Subject Management -->
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">📚 จัดการรายวิชา</h2>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เพิ่มรายวิชาใหม่</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-subject-name" placeholder="ชื่อรายวิชา" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <button onclick="addSubject()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-lg">เพิ่ม</button>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">รายวิชาที่มีอยู่</label>
+                            <div id="subject-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="clearAllSubjects()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">ลบทั้งหมด</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student Management Modal -->
+                <div id="student-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+                    <div class="flex items-center justify-center min-h-screen p-4">
+                        <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                            <div class="p-6">
+                                <div class="flex justify-between items-center mb-6">
+                                    <h3 class="text-xl font-bold text-gray-800">จัดการนักเรียนในห้อง: <span id="modal-room-name"></span></h3>
+                                    <button onclick="closeStudentModal()" class="text-gray-500 hover:text-gray-700">✕</button>
+                                </div>
+
+                                <!-- Add Student Form -->
+                                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                                    <h4 class="font-semibold mb-3">เพิ่มนักเรียนใหม่</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <input type="number" id="student-number" placeholder="เลขที่" class="p-2 border rounded-lg">
+                                        <input type="text" id="student-id" placeholder="เลขประจำตัว" class="p-2 border rounded-lg">
+                                        <input type="text" id="student-name" placeholder="ชื่อ-สกุล" class="p-2 border rounded-lg">
+                                    </div>
+                                    <div class="mt-3 flex gap-2">
+                                        <button onclick="addStudent()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">เพิ่มนักเรียน</button>
+                                        <input type="file" id="excel-file" accept=".xlsx,.xls" class="hidden" onchange="importFromExcel()">
+                                        <button onclick="document.getElementById('excel-file').click()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">นำเข้าจาก Excel</button>
+                                    </div>
+                                </div>
+
+                                <!-- Student List -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse border border-gray-300">
+                                        <thead>
+                                            <tr class="bg-gray-100">
+                                                <th class="border border-gray-300 px-4 py-2">เลขที่</th>
+                                                <th class="border border-gray-300 px-4 py-2">เลขประจำตัว</th>
+                                                <th class="border border-gray-300 px-4 py-2">ชื่อ-สกุล</th>
+                                                <th class="border border-gray-300 px-4 py-2">จัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="modal-student-list">
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="mt-6 flex justify-end gap-2">
+                                    <button onclick="saveStudents()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">บันทึกข้อมูลนักเรียน</button>
+                                    <button onclick="closeStudentModal()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg">ปิด</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 ประวัติการเข้าเรียน</h2>
+                    
+                    <!-- Date Selection -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">เลือกวันที่</label>
+                        <div id="history-calendar" class="bg-gray-50 p-4 rounded-lg"></div>
+                    </div>
+
+                    <!-- Room and Subject Selection -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เลือกห้องเรียน</label>
+                            <select id="history-room-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">-- เลือกห้องเรียน --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">เลือกรายวิชา</label>
+                            <select id="history-subject-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                                <option value="">-- เลือกรายวิชา --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="text-center mb-6">
+                        <button onclick="loadHistory()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-medium mr-4">
+                            🔍 เรียกดูข้อมูล
+                        </button>
+                        <button onclick="deleteSelectedHistory()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium mr-4">
+                            🗑️ ลบประวัติวันที่เลือก
+                        </button>
+                        <button onclick="deleteAllHistory()" class="bg-red-800 hover:bg-red-900 text-white px-6 py-3 rounded-lg font-medium">
+                            🗑️ ลบประวัติทั้งหมด
+                        </button>
+                    </div>
+
+                    <!-- History Results -->
+                    <div id="history-results" class="hidden">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">ประวัติการเข้าเรียน</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse border border-gray-300">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="border border-gray-300 px-4 py-2">เลขที่</th>
+                                        <th class="border border-gray-300 px-4 py-2">เลขประจำตัว</th>
+                                        <th class="border border-gray-300 px-4 py-2">ชื่อ-สกุล</th>
+                                        <th class="border border-gray-300 px-4 py-2">สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentDate = new Date();
+        let selectedDate = null;
+        let currentRoom = null;
+        let rooms = JSON.parse(localStorage.getItem('rooms')) || [];
+        let subjects = JSON.parse(localStorage.getItem('subjects')) || [];
+        let attendanceData = JSON.parse(localStorage.getItem('attendanceData')) || {};
+        
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAUDEJkFnG-ZwCws0X-RGlST_MOhAwcW4ffn5jO51094vrmcEjjUJR7WTI6zo2Abpu/exec';
+
+        // Status configurations
+        const statusConfig = {
+            'present': { label: '/', color: 'bg-green-50', activeColor: 'bg-green-400', textColor: 'text-green-600' },
+            'absent': { label: 'ข', color: 'bg-red-50', activeColor: 'bg-red-400', textColor: 'text-red-600' },
+            'business': { label: 'ล', color: 'bg-purple-50', activeColor: 'bg-purple-400', textColor: 'text-purple-600' },
+            'sick': { label: 'ป', color: 'bg-orange-50', activeColor: 'bg-orange-400', textColor: 'text-orange-600' },
+            'activity': { label: 'ก', color: 'bg-yellow-50', activeColor: 'bg-yellow-400', textColor: 'text-yellow-600' }
+        };
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            generateCalendar('calendar');
+            generateCalendar('history-calendar');
+            loadRoomsAndSubjects();
+            updateRoomList();
+            updateSubjectList();
+        }
+
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            
+            // Add active class to selected button
+            const activeBtn = document.getElementById('tab-' + tabName);
+            activeBtn.classList.add('bg-indigo-600', 'text-white');
+            activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+            
+            // Refresh data when switching tabs
+            if (tabName === 'history') {
+                loadRoomsAndSubjects();
+            }
+        }
+
+        // Calendar generation
+        function generateCalendar(containerId) {
+            const container = document.getElementById(containerId);
+            const today = new Date();
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+            
+            const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                              'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            
+            let html = `
+                <div class="flex justify-between items-center mb-4">
+                    <button onclick="changeMonth(-1, '${containerId}')" class="p-2 hover:bg-gray-200 rounded">◀</button>
+                    <h3 class="text-lg font-semibold">${monthNames[month]} ${year}</h3>
+                    <button onclick="changeMonth(1, '${containerId}')" class="p-2 hover:bg-gray-200 rounded">▶</button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center">
+                    <div class="font-semibold text-red-600">อา</div>
+                    <div class="font-semibold">จ</div>
+                    <div class="font-semibold">อ</div>
+                    <div class="font-semibold">พ</div>
+                    <div class="font-semibold">พฤ</div>
+                    <div class="font-semibold">ศ</div>
+                    <div class="font-semibold text-blue-600">ส</div>
+            `;
+            
+            for (let i = 0; i < 42; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                
+                const isCurrentMonth = date.getMonth() === month;
+                const isToday = date.toDateString() === today.toDateString();
+                const isPast = date <= today;
+                const dateStr = date.toISOString().split('T')[0];
+                const hasData = attendanceData[dateStr];
+                
+                let classes = 'calendar-day p-2 rounded cursor-pointer';
+                
+                if (!isCurrentMonth) {
+                    classes += ' text-gray-300';
+                } else if (containerId === 'calendar' && !isPast) {
+                    classes += ' disabled';
+                } else {
+                    classes += ' hover:bg-gray-200';
+                }
+                
+                if (isToday) {
+                    classes += ' bg-blue-100 border-2 border-blue-500';
+                }
+                
+                if (hasData) {
+                    classes += ' has-data';
+                }
+                
+                const clickHandler = (containerId === 'calendar' && isPast && isCurrentMonth) || 
+                                   (containerId === 'history-calendar' && isCurrentMonth) 
+                                   ? `onclick="selectDate('${dateStr}', '${containerId}')"` : '';
+                
+                html += `<div class="${classes}" ${clickHandler}>${date.getDate()}</div>`;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function changeMonth(direction, containerId) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            generateCalendar(containerId);
+        }
+
+        function selectDate(dateStr, containerId) {
+            selectedDate = dateStr;
+            
+            // Update visual selection
+            const container = document.getElementById(containerId);
+            container.querySelectorAll('.calendar-day').forEach(day => {
+                day.classList.remove('selected');
+            });
+            
+            event.target.classList.add('selected');
+            
+            if (containerId === 'calendar') {
+                // Reset room and subject selection when date changes
+                document.getElementById('room-select').value = '';
+                document.getElementById('subject-select').value = '';
+                document.getElementById('student-list').classList.add('hidden');
+                checkAndShowStudents();
+            } else if (containerId === 'history-calendar') {
+                // Reset history results when date is selected
+                document.getElementById('history-results').classList.add('hidden');
+            }
+        }
+
+        // Room and Subject management
+        function loadRoomsAndSubjects() {
+            const roomSelect = document.getElementById('room-select');
+            const subjectSelect = document.getElementById('subject-select');
+            const historyRoomSelect = document.getElementById('history-room-select');
+            const historySubjectSelect = document.getElementById('history-subject-select');
+            
+            // Clear existing options
+            [roomSelect, historyRoomSelect].forEach(select => {
+                select.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
+                rooms.forEach(room => {
+                    select.innerHTML += `<option value="${room.name}">${room.name}</option>`;
+                });
+            });
+            
+            [subjectSelect, historySubjectSelect].forEach(select => {
+                select.innerHTML = '<option value="">-- เลือกรายวิชา --</option>';
+                subjects.forEach(subject => {
+                    select.innerHTML += `<option value="${subject.name}">${subject.name}</option>`;
+                });
+            });
+        }
+
+        function checkAndShowStudents() {
+            const roomName = document.getElementById('room-select').value;
+            const subjectName = document.getElementById('subject-select').value;
+            
+            if (selectedDate && roomName && subjectName) {
+                const room = rooms.find(r => r.name === roomName);
+                if (room && room.students && room.students.length > 0) {
+                    displayStudentList(room.students, roomName, subjectName);
+                } else {
+                    document.getElementById('student-list').classList.add('hidden');
+                    Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลนักเรียนในห้องนี้', 'warning');
+                }
+            } else {
+                document.getElementById('student-list').classList.add('hidden');
+            }
+        }
+
+        function displayStudentList(students, roomName, subjectName) {
+            const tbody = document.getElementById('student-tbody');
+            const dateStr = selectedDate;
+            const existingData = attendanceData[dateStr]?.[roomName]?.[subjectName] || {};
+            
+            tbody.innerHTML = '';
+            
+            students.sort((a, b) => parseInt(a.number) - parseInt(b.number)).forEach(student => {
+                const currentStatus = existingData[student.id] || 'present';
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${student.number}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.id}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.name}</td>
+                    <td class="border border-gray-300 px-4 py-2">
+                        <div class="flex justify-center gap-2">
+                            ${Object.entries(statusConfig).map(([key, config]) => `
+                                <button class="status-btn w-8 h-8 rounded-full text-sm font-bold ${currentStatus === key ? 'active ' + config.activeColor + ' text-white' : config.color + ' ' + config.textColor}"
+                                        onclick="setStudentStatus('${student.id}', '${key}', this)"
+                                        data-status="${key}">
+                                    ${config.label}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('student-list').classList.remove('hidden');
+        }
+
+        function setStudentStatus(studentId, status, button) {
+            // Remove active class from all buttons in the same row
+            const row = button.closest('tr');
+            row.querySelectorAll('.status-btn').forEach(btn => {
+                const btnStatus = btn.dataset.status;
+                const config = statusConfig[btnStatus];
+                btn.classList.remove('active', 'bg-green-400', 'bg-red-400', 'bg-purple-400', 'bg-orange-400', 'bg-yellow-400', 'text-white');
+                btn.classList.add(config.color, config.textColor);
+            });
+            
+            // Add active class to clicked button
+            const config = statusConfig[status];
+            button.classList.add('active', config.activeColor, 'text-white');
+            button.classList.remove(config.color, config.textColor);
+            
+            // Store the status
+            button.dataset.currentStatus = status;
+        }
+
+        // Attendance saving
+        function saveAttendance() {
+            const roomName = document.getElementById('room-select').value;
+            const subjectName = document.getElementById('subject-select').value;
+            
+            if (!selectedDate || !roomName || !subjectName) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกวันที่ ห้องเรียน และรายวิชา', 'error');
+                return;
+            }
+            
+            const attendanceRecord = {};
+            const rows = document.querySelectorAll('#student-tbody tr');
+            
+            rows.forEach(row => {
+                const studentId = row.cells[1].textContent;
+                const activeButton = row.querySelector('.status-btn.active');
+                const status = activeButton ? activeButton.dataset.status : 'absent';
+                attendanceRecord[studentId] = status;
+            });
+            
+            // Save to local storage
+            if (!attendanceData[selectedDate]) {
+                attendanceData[selectedDate] = {};
+            }
+            if (!attendanceData[selectedDate][roomName]) {
+                attendanceData[selectedDate][roomName] = {};
+            }
+            attendanceData[selectedDate][roomName][subjectName] = attendanceRecord;
+            
+            localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+            
+            // Save to Google Sheets
+            const dataToSend = {
+                action: 'saveAttendance',
+                date: selectedDate,
+                room: roomName,
+                subject: subjectName,
+                attendance: JSON.stringify(attendanceRecord)
+            };
+            
+            sendToGoogleSheets(dataToSend);
+        }
+
+        // Google Sheets integration
+        function sendToGoogleSheets(data) {
+            // Show loading state
+            Swal.fire({
+                title: 'กำลังบันทึกข้อมูล...',
+                text: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            const script = document.createElement('script');
+            const callbackName = 'callback_' + Date.now();
+            
+            window[callbackName] = function(response) {
+                Swal.close(); // Close loading dialog
+                
+                if (response.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ!',
+                        text: response.message || 'บันทึกข้อมูลเรียบร้อยแล้ว',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    generateCalendar('calendar');
+                    generateCalendar('history-calendar');
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เกิดข้อผิดพลาด',
+                        text: 'ไม่สามารถบันทึกข้อมูลได้: ' + (response.error || 'Unknown error')
+                    });
+                }
+                document.head.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Ensure all data is properly stringified
+            const processedData = {};
+            Object.keys(data).forEach(key => {
+                if (typeof data[key] === 'object' && data[key] !== null) {
+                    processedData[key] = JSON.stringify(data[key]);
+                } else {
+                    processedData[key] = data[key];
+                }
+            });
+            
+            const params = new URLSearchParams({
+                ...processedData,
+                callback: callbackName
+            });
+            
+            script.src = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+            document.head.appendChild(script);
+        }
+
+        // Room management
+        function addRoom() {
+            const roomName = document.getElementById('new-room-name').value.trim();
+            if (!roomName) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาใส่ชื่อห้องเรียน', 'error');
+                return;
+            }
+            
+            if (rooms.find(r => r.name === roomName)) {
+                Swal.fire('ข้อผิดพลาด', 'ห้องเรียนนี้มีอยู่แล้ว', 'error');
+                return;
+            }
+            
+            rooms.push({ name: roomName, students: [] });
+            rooms.sort((a, b) => a.name.localeCompare(b.name));
+            localStorage.setItem('rooms', JSON.stringify(rooms));
+            document.getElementById('new-room-name').value = '';
+            updateRoomList();
+            loadRoomsAndSubjects();
+            
+            // Auto save to Google Sheets
+            const dataToSend = {
+                action: 'saveRooms',
+                rooms: JSON.stringify(rooms)
+            };
+            sendToGoogleSheets(dataToSend);
+        }
+
+        function updateRoomList() {
+            const container = document.getElementById('room-list');
+            container.innerHTML = '';
+            
+            rooms.forEach((room, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+                div.innerHTML = `
+                    <span class="font-medium">${room.name} (${room.students ? room.students.length : 0} คน)</span>
+                    <div class="flex gap-2">
+                        <button onclick="editRoom(${index})" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">แก้ไข</button>
+                        <button onclick="deleteRoom(${index})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">ลบ</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function editRoom(index) {
+            currentRoom = index;
+            document.getElementById('modal-room-name').textContent = rooms[index].name;
+            updateModalStudentList();
+            document.getElementById('student-modal').classList.remove('hidden');
+        }
+
+        function deleteRoom(index) {
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: `ต้องการลบห้อง "${rooms[index].name}" หรือไม่?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    rooms.splice(index, 1);
+                    rooms.sort((a, b) => a.name.localeCompare(b.name));
+                    localStorage.setItem('rooms', JSON.stringify(rooms));
+                    updateRoomList();
+                    loadRoomsAndSubjects();
+                    
+                    // Save to Google Sheets
+                    const dataToSend = {
+                        action: 'saveRooms',
+                        rooms: JSON.stringify(rooms)
+                    };
+                    sendToGoogleSheets(dataToSend);
+                }
+            });
+        }
+
+        function saveRooms() {
+            const dataToSend = {
+                action: 'saveRooms',
+                rooms: JSON.stringify(rooms)
+            };
+            sendToGoogleSheets(dataToSend);
+        }
+
+        function clearAllRooms() {
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: 'ต้องการลบข้อมูลห้องเรียนทั้งหมดหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบทั้งหมด',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Show loading state
+                    Swal.fire({
+                        title: 'กำลังลบข้อมูล...',
+                        text: 'กรุณารอสักครู่',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    rooms = [];
+                    localStorage.setItem('rooms', JSON.stringify(rooms));
+                    updateRoomList();
+                    loadRoomsAndSubjects();
+                    
+                    const dataToSend = {
+                        action: 'clearAllRooms'
+                    };
+                    sendToGoogleSheets(dataToSend);
+                }
+            });
+        }
+
+        // Subject management
+        function addSubject() {
+            const subjectName = document.getElementById('new-subject-name').value.trim();
+            if (!subjectName) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาใส่ชื่อรายวิชา', 'error');
+                return;
+            }
+            
+            if (subjects.find(s => s.name === subjectName)) {
+                Swal.fire('ข้อผิดพลาด', 'รายวิชานี้มีอยู่แล้ว', 'error');
+                return;
+            }
+            
+            subjects.push({ name: subjectName });
+            subjects.sort((a, b) => a.name.localeCompare(b.name));
+            localStorage.setItem('subjects', JSON.stringify(subjects));
+            document.getElementById('new-subject-name').value = '';
+            updateSubjectList();
+            loadRoomsAndSubjects();
+            
+            // Save to Google Sheets
+            const dataToSend = {
+                action: 'saveSubjects',
+                subjects: JSON.stringify(subjects)
+            };
+            sendToGoogleSheets(dataToSend);
+        }
+
+        function updateSubjectList() {
+            const container = document.getElementById('subject-list');
+            container.innerHTML = '';
+            
+            subjects.forEach((subject, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+                div.innerHTML = `
+                    <span class="font-medium">${subject.name}</span>
+                    <div class="flex gap-2">
+                        <button onclick="editSubject(${index})" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">แก้ไข</button>
+                        <button onclick="deleteSubject(${index})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">ลบ</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function editSubject(index) {
+            Swal.fire({
+                title: 'แก้ไขรายวิชา',
+                input: 'text',
+                inputValue: subjects[index].name,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึก',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed && result.value.trim()) {
+                    subjects[index].name = result.value.trim();
+                    subjects.sort((a, b) => a.name.localeCompare(b.name));
+                    localStorage.setItem('subjects', JSON.stringify(subjects));
+                    updateSubjectList();
+                    loadRoomsAndSubjects();
+                    
+                    // Save to Google Sheets
+                    const dataToSend = {
+                        action: 'saveSubjects',
+                        subjects: JSON.stringify(subjects)
+                    };
+                    sendToGoogleSheets(dataToSend);
+                }
+            });
+        }
+
+        function deleteSubject(index) {
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: `ต้องการลบรายวิชา "${subjects[index].name}" หรือไม่?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    subjects.splice(index, 1);
+                    subjects.sort((a, b) => a.name.localeCompare(b.name));
+                    localStorage.setItem('subjects', JSON.stringify(subjects));
+                    updateSubjectList();
+                    loadRoomsAndSubjects();
+                    
+                    // Save to Google Sheets
+                    const dataToSend = {
+                        action: 'saveSubjects',
+                        subjects: JSON.stringify(subjects)
+                    };
+                    sendToGoogleSheets(dataToSend);
+                }
+            });
+        }
+
+        function saveSubjects() {
+            const dataToSend = {
+                action: 'saveSubjects',
+                subjects: JSON.stringify(subjects)
+            };
+            sendToGoogleSheets(dataToSend);
+        }
+
+        function clearAllSubjects() {
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: 'ต้องการลบข้อมูลรายวิชาทั้งหมดหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบทั้งหมด',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Show loading state
+                    Swal.fire({
+                        title: 'กำลังลบข้อมูล...',
+                        text: 'กรุณารอสักครู่',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    subjects = [];
+                    localStorage.setItem('subjects', JSON.stringify(subjects));
+                    updateSubjectList();
+                    loadRoomsAndSubjects();
+                    
+                    const dataToSend = {
+                        action: 'clearAllSubjects'
+                    };
+                    sendToGoogleSheets(dataToSend);
+                }
+            });
+        }
+
+        // Student management
+        function addStudent() {
+            const number = document.getElementById('student-number').value.trim();
+            const id = document.getElementById('student-id').value.trim();
+            const name = document.getElementById('student-name').value.trim();
+            
+            if (!number || !id || !name) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+                return;
+            }
+            
+            if (!rooms[currentRoom].students) {
+                rooms[currentRoom].students = [];
+            }
+            
+            if (rooms[currentRoom].students.find(s => s.id === id)) {
+                Swal.fire('ข้อผิดพลาด', 'เลขประจำตัวนี้มีอยู่แล้ว', 'error');
+                return;
+            }
+            
+            rooms[currentRoom].students.push({ number, id, name });
+            rooms[currentRoom].students.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+            localStorage.setItem('rooms', JSON.stringify(rooms));
+            
+            // Clear form
+            document.getElementById('student-number').value = '';
+            document.getElementById('student-id').value = '';
+            document.getElementById('student-name').value = '';
+            
+            updateModalStudentList();
+            updateRoomList();
+        }
+
+        function updateModalStudentList() {
+            const tbody = document.getElementById('modal-student-list');
+            tbody.innerHTML = '';
+            
+            if (!rooms[currentRoom].students) {
+                rooms[currentRoom].students = [];
+            }
+            
+            rooms[currentRoom].students.sort((a, b) => parseInt(a.number) - parseInt(b.number)).forEach((student, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${student.number}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.id}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.name}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center">
+                        <button onclick="editStudent(${index})" class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-sm mr-2">แก้ไข</button>
+                        <button onclick="deleteStudent(${index})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm">ลบ</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function editStudent(index) {
+            const student = rooms[currentRoom].students[index];
+            
+            Swal.fire({
+                title: 'แก้ไขข้อมูลนักเรียน',
+                html: `
+                    <input id="edit-number" class="swal2-input" placeholder="เลขที่" value="${student.number}">
+                    <input id="edit-id" class="swal2-input" placeholder="เลขประจำตัว" value="${student.id}">
+                    <input id="edit-name" class="swal2-input" placeholder="ชื่อ-สกุล" value="${student.name}">
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึก',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const number = document.getElementById('edit-number').value.trim();
+                    const id = document.getElementById('edit-id').value.trim();
+                    const name = document.getElementById('edit-name').value.trim();
+                    
+                    if (!number || !id || !name) {
+                        Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                        return false;
+                    }
+                    
+                    return { number, id, name };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    rooms[currentRoom].students[index] = result.value;
+                    rooms[currentRoom].students.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+                    localStorage.setItem('rooms', JSON.stringify(rooms));
+                    updateModalStudentList();
+                    updateRoomList();
+                }
+            });
+        }
+
+        function deleteStudent(index) {
+            const student = rooms[currentRoom].students[index];
+            
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: `ต้องการลบนักเรียน "${student.name}" หรือไม่?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    rooms[currentRoom].students.splice(index, 1);
+                    rooms[currentRoom].students.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+                    localStorage.setItem('rooms', JSON.stringify(rooms));
+                    updateModalStudentList();
+                    updateRoomList();
+                }
+            });
+        }
+
+        function saveStudents() {
+            const dataToSend = {
+                action: 'saveStudents',
+                roomName: rooms[currentRoom].name,
+                students: JSON.stringify(rooms[currentRoom].students)
+            };
+            sendToGoogleSheets(dataToSend);
+            
+            // Also update the rooms data in Google Sheets
+            const roomsDataToSend = {
+                action: 'saveRooms',
+                rooms: JSON.stringify(rooms)
+            };
+            sendToGoogleSheets(roomsDataToSend);
+        }
+
+        function closeStudentModal() {
+            document.getElementById('student-modal').classList.add('hidden');
+        }
+
+        // Excel import
+        function importFromExcel() {
+            const file = document.getElementById('excel-file').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    let importedCount = 0;
+                    
+                    for (let i = 1; i < jsonData.length; i++) { // Skip header row
+                        const row = jsonData[i];
+                        if (row[0] && row[1] && row[2]) { // Check if all required columns have data
+                            const number = row[0].toString().trim();
+                            const id = row[1].toString().trim();
+                            const name = row[2].toString().trim();
+                            
+                            // Check if student ID already exists
+                            if (!rooms[currentRoom].students.find(s => s.id === id)) {
+                                rooms[currentRoom].students.push({ number, id, name });
+                                importedCount++;
+                            }
+                        }
+                    }
+                    
+                    if (importedCount > 0) {
+                        rooms[currentRoom].students.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+                        localStorage.setItem('rooms', JSON.stringify(rooms));
+                        updateModalStudentList();
+                        updateRoomList();
+                        Swal.fire('สำเร็จ', `นำเข้าข้อมูลนักเรียน ${importedCount} คน`, 'success');
+                    } else {
+                        Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลใหม่ที่จะนำเข้า', 'info');
+                    }
+                    
+                } catch (error) {
+                    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์ Excel ได้', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // History management
+        function loadHistory() {
+            const date = selectedDate;
+            const room = document.getElementById('history-room-select').value;
+            const subject = document.getElementById('history-subject-select').value;
+            
+            if (!date || !room || !subject) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกวันที่ ห้องเรียน และรายวิชา', 'error');
+                return;
+            }
+            
+            const historyData = attendanceData[date]?.[room]?.[subject];
+            const roomData = rooms.find(r => r.name === room);
+            
+            if (!historyData || !roomData) {
+                Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการเข้าเรียนในวันที่เลือก', 'info');
+                document.getElementById('history-results').classList.add('hidden');
+                return;
+            }
+            
+            displayHistoryResults(roomData.students, historyData);
+        }
+
+        function deleteSelectedHistory() {
+            const date = selectedDate;
+            const room = document.getElementById('history-room-select').value;
+            const subject = document.getElementById('history-subject-select').value;
+            
+            if (!date || !room || !subject) {
+                Swal.fire('ข้อผิดพลาด', 'กรุณาเลือกวันที่ ห้องเรียน และรายวิชา', 'error');
+                return;
+            }
+            
+            const historyData = attendanceData[date]?.[room]?.[subject];
+            
+            if (!historyData) {
+                Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการเข้าเรียนในวันที่เลือก', 'info');
+                return;
+            }
+            
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: `ต้องการลบประวัติการเข้าเรียน วันที่ ${date} ห้อง ${room} วิชา ${subject} หรือไม่?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Delete from local storage
+                    delete attendanceData[date][room][subject];
+                    
+                    // Clean up empty objects
+                    if (Object.keys(attendanceData[date][room]).length === 0) {
+                        delete attendanceData[date][room];
+                    }
+                    if (Object.keys(attendanceData[date]).length === 0) {
+                        delete attendanceData[date];
+                    }
+                    
+                    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                    
+                    // Delete from Google Sheets
+                    const dataToSend = {
+                        action: 'deleteAttendance',
+                        date: date,
+                        room: room,
+                        subject: subject
+                    };
+                    
+                    sendToGoogleSheets(dataToSend);
+                    
+                    // Hide results and refresh calendar
+                    document.getElementById('history-results').classList.add('hidden');
+                    generateCalendar('calendar');
+                    generateCalendar('history-calendar');
+                }
+            });
+        }
+
+        function deleteAllHistory() {
+            Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: 'ต้องการลบประวัติการเข้าเรียนทั้งหมดหรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ลบทั้งหมด',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Show loading state
+                    Swal.fire({
+                        title: 'กำลังลบข้อมูล...',
+                        text: 'กรุณารอสักครู่',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    // Clear local storage
+                    attendanceData = {};
+                    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                    
+                    // Delete from Google Sheets
+                    const dataToSend = {
+                        action: 'deleteAllAttendance'
+                    };
+                    
+                    sendToGoogleSheets(dataToSend);
+                    
+                    // Hide results and refresh calendar
+                    document.getElementById('history-results').classList.add('hidden');
+                    generateCalendar('calendar');
+                    generateCalendar('history-calendar');
+                }
+            });
+        }
+
+        function displayHistoryResults(students, historyData) {
+            const tbody = document.getElementById('history-tbody');
+            tbody.innerHTML = '';
+            
+            students.sort((a, b) => parseInt(a.number) - parseInt(b.number)).forEach(student => {
+                const status = historyData[student.id] || 'absent';
+                const config = statusConfig[status];
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border border-gray-300 px-4 py-2">${student.number}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.id}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.name}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center">
+                        <span class="inline-block w-8 h-8 rounded-full ${config.activeColor} text-white text-sm font-bold leading-8">
+                            ${config.label}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('history-results').classList.remove('hidden');
+        }
+
+        // Event listeners
+        document.getElementById('room-select').addEventListener('change', checkAndShowStudents);
+        document.getElementById('subject-select').addEventListener('change', checkAndShowStudents);
+        document.getElementById('history-room-select').addEventListener('change', function() {
+            document.getElementById('history-results').classList.add('hidden');
+        });
+        document.getElementById('history-subject-select').addEventListener('change', function() {
+            document.getElementById('history-results').classList.add('hidden');
+        });
+    </script>
+
+
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf0279e22d7994',t:'MTc1NDgyMzgzOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
