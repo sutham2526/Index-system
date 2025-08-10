@@ -309,11 +309,87 @@
         });
 
         function initializeApp() {
-            generateCalendar('calendar');
-            generateCalendar('history-calendar');
-            loadRoomsAndSubjects();
-            updateRoomList();
-            updateSubjectList();
+            // Show loading state
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                text: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // Load data from Google Sheets first
+            loadDataFromGoogleSheets();
+        }
+
+        function loadDataFromGoogleSheets() {
+            const script = document.createElement('script');
+            const callbackName = 'loadCallback_' + Date.now();
+            
+            window[callbackName] = function(response) {
+                if (response.success) {
+                    // Load rooms data
+                    if (response.rooms && response.rooms.length > 0) {
+                        rooms = response.rooms.map(room => ({
+                            name: room[0],
+                            students: room[1] ? JSON.parse(room[1]) : []
+                        }));
+                        localStorage.setItem('rooms', JSON.stringify(rooms));
+                    }
+                    
+                    // Load subjects data
+                    if (response.subjects && response.subjects.length > 0) {
+                        subjects = response.subjects.map(subject => ({
+                            name: subject[0]
+                        }));
+                        localStorage.setItem('subjects', JSON.stringify(subjects));
+                    }
+                    
+                    // Load attendance data
+                    if (response.attendance && response.attendance.length > 0) {
+                        const loadedAttendanceData = {};
+                        response.attendance.forEach(record => {
+                            const [date, room, subject, studentId, status] = record;
+                            if (!loadedAttendanceData[date]) {
+                                loadedAttendanceData[date] = {};
+                            }
+                            if (!loadedAttendanceData[date][room]) {
+                                loadedAttendanceData[date][room] = {};
+                            }
+                            if (!loadedAttendanceData[date][room][subject]) {
+                                loadedAttendanceData[date][room][subject] = {};
+                            }
+                            loadedAttendanceData[date][room][subject][studentId] = status;
+                        });
+                        attendanceData = loadedAttendanceData;
+                        localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                    }
+                }
+                
+                // Initialize UI components
+                generateCalendar('calendar');
+                generateCalendar('history-calendar');
+                loadRoomsAndSubjects();
+                updateRoomList();
+                updateSubjectList();
+                
+                // Close loading dialog
+                Swal.close();
+                
+                document.head.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            const params = new URLSearchParams({
+                action: 'loadAllData',
+                callback: callbackName
+            });
+            
+            script.src = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+            document.head.appendChild(script);
         }
 
         // Tab management
@@ -1238,5 +1314,5 @@
     </script>
 
 
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf0279e22d7994',t:'MTc1NDgyMzgzOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf1086f1b8798f',t:'MTc1NDgyNDQxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
