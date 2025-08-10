@@ -414,9 +414,7 @@
             activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
             
             // Refresh data when switching tabs
-            if (tabName === 'history') {
-                loadRoomsAndSubjects();
-            }
+            loadDataFromGoogleSheets();
         }
 
         // Calendar generation
@@ -653,33 +651,39 @@
         }
 
         // Google Sheets integration
-        function sendToGoogleSheets(data) {
-            // Show loading state
-            Swal.fire({
-                title: 'กำลังบันทึกข้อมูล...',
-                text: 'กรุณารอสักครู่',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
+        function sendToGoogleSheets(data, showLoading = true, showSuccess = true) {
+            if (showLoading) {
+                // Show loading state
+                Swal.fire({
+                    title: 'กำลังบันทึกข้อมูล...',
+                    text: 'กรุณารอสักครู่',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            }
             
             const script = document.createElement('script');
             const callbackName = 'callback_' + Date.now();
             
             window[callbackName] = function(response) {
-                Swal.close(); // Close loading dialog
+                if (showLoading) {
+                    Swal.close(); // Close loading dialog
+                }
                 
                 if (response.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'สำเร็จ!',
-                        text: response.message || 'บันทึกข้อมูลเรียบร้อยแล้ว',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
+                    if (showSuccess) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'สำเร็จ!',
+                            text: response.message || 'บันทึกข้อมูลเรียบร้อยแล้ว',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    }
                     generateCalendar('calendar');
                     generateCalendar('history-calendar');
                 } else {
@@ -737,7 +741,7 @@
                 action: 'saveRooms',
                 rooms: JSON.stringify(rooms)
             };
-            sendToGoogleSheets(dataToSend);
+            sendToGoogleSheets(dataToSend, false, false);
         }
 
         function updateRoomList() {
@@ -786,7 +790,7 @@
                         action: 'saveRooms',
                         rooms: JSON.stringify(rooms)
                     };
-                    sendToGoogleSheets(dataToSend);
+                    sendToGoogleSheets(dataToSend, false, false);
                 }
             });
         }
@@ -859,7 +863,7 @@
                 action: 'saveSubjects',
                 subjects: JSON.stringify(subjects)
             };
-            sendToGoogleSheets(dataToSend);
+            sendToGoogleSheets(dataToSend, false, false);
         }
 
         function updateSubjectList() {
@@ -901,7 +905,7 @@
                         action: 'saveSubjects',
                         subjects: JSON.stringify(subjects)
                     };
-                    sendToGoogleSheets(dataToSend);
+                    sendToGoogleSheets(dataToSend, false, false);
                 }
             });
         }
@@ -927,7 +931,7 @@
                         action: 'saveSubjects',
                         subjects: JSON.stringify(subjects)
                     };
-                    sendToGoogleSheets(dataToSend);
+                    sendToGoogleSheets(dataToSend, false, false);
                 }
             });
         }
@@ -1143,7 +1147,61 @@
                         localStorage.setItem('rooms', JSON.stringify(rooms));
                         updateModalStudentList();
                         updateRoomList();
-                        Swal.fire('สำเร็จ', `นำเข้าข้อมูลนักเรียน ${importedCount} คน`, 'success');
+                        
+                        // Save to Google Sheets automatically
+                        const dataToSend = {
+                            action: 'saveRooms',
+                            rooms: JSON.stringify(rooms)
+                        };
+                        
+                        // Show loading state
+                        Swal.fire({
+                            title: 'กำลังบันทึกข้อมูล...',
+                            text: 'กรุณารอสักครู่',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            showConfirmButton: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        
+                        const script = document.createElement('script');
+                        const callbackName = 'importCallback_' + Date.now();
+                        
+                        window[callbackName] = function(response) {
+                            Swal.close();
+                            
+                            if (response.success) {
+                                // Close modal and show success message
+                                closeStudentModal();
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'สำเร็จ!',
+                                    text: `นำเข้าและบันทึกข้อมูลนักเรียน ${importedCount} คนเรียบร้อยแล้ว`,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'เกิดข้อผิดพลาด',
+                                    text: 'ไม่สามารถบันทึกข้อมูลได้: ' + (response.error || 'Unknown error')
+                                });
+                            }
+                            
+                            document.head.removeChild(script);
+                            delete window[callbackName];
+                        };
+                        
+                        const params = new URLSearchParams({
+                            ...dataToSend,
+                            callback: callbackName
+                        });
+                        
+                        script.src = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+                        document.head.appendChild(script);
+                        
                     } else {
                         Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลใหม่ที่จะนำเข้า', 'info');
                     }
@@ -1204,33 +1262,73 @@
                 cancelButtonText: 'ยกเลิก'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Delete from local storage
-                    delete attendanceData[date][room][subject];
+                    // Show loading state
+                    Swal.fire({
+                        title: 'กำลังลบข้อมูล...',
+                        text: 'กรุณารอสักครู่',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
                     
-                    // Clean up empty objects
-                    if (Object.keys(attendanceData[date][room]).length === 0) {
-                        delete attendanceData[date][room];
-                    }
-                    if (Object.keys(attendanceData[date]).length === 0) {
-                        delete attendanceData[date];
-                    }
+                    // Delete from Google Sheets first
+                    const script = document.createElement('script');
+                    const callbackName = 'deleteCallback_' + Date.now();
                     
-                    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                    window[callbackName] = function(response) {
+                        Swal.close();
+                        
+                        if (response.success) {
+                            // Delete from local storage after successful deletion from Google Sheets
+                            delete attendanceData[date][room][subject];
+                            
+                            // Clean up empty objects
+                            if (Object.keys(attendanceData[date][room]).length === 0) {
+                                delete attendanceData[date][room];
+                            }
+                            if (Object.keys(attendanceData[date]).length === 0) {
+                                delete attendanceData[date];
+                            }
+                            
+                            localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+                            
+                            // Hide results and refresh calendar
+                            document.getElementById('history-results').classList.add('hidden');
+                            generateCalendar('calendar');
+                            generateCalendar('history-calendar');
+                            
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'สำเร็จ!',
+                                text: 'ลบประวัติการเข้าเรียนเรียบร้อยแล้ว',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'เกิดข้อผิดพลาด',
+                                text: 'ไม่สามารถลบข้อมูลได้: ' + (response.error || 'Unknown error')
+                            });
+                        }
+                        
+                        document.head.removeChild(script);
+                        delete window[callbackName];
+                    };
                     
-                    // Delete from Google Sheets
-                    const dataToSend = {
+                    const params = new URLSearchParams({
                         action: 'deleteAttendance',
                         date: date,
                         room: room,
-                        subject: subject
-                    };
+                        subject: subject,
+                        callback: callbackName
+                    });
                     
-                    sendToGoogleSheets(dataToSend);
-                    
-                    // Hide results and refresh calendar
-                    document.getElementById('history-results').classList.add('hidden');
-                    generateCalendar('calendar');
-                    generateCalendar('history-calendar');
+                    script.src = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+                    document.head.appendChild(script);
                 }
             });
         }
@@ -1314,5 +1412,5 @@
     </script>
 
 
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf1086f1b8798f',t:'MTc1NDgyNDQxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96cf8331f79d2dc0',t:'MTc1NDgyOTExMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
